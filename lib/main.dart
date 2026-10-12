@@ -4,7 +4,9 @@ void main() {
   runApp(const MainApp());
 }
 
+/// Root application widget.
 class MainApp extends StatelessWidget {
+  /// Creates the [MainApp].
   const MainApp({super.key});
 
   @override

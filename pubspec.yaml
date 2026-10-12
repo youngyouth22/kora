@@ -7,13 +7,44 @@ environment:
   sdk: ^3.13.2
 
 dependencies:
+  bloc_lint: ^0.4.3
+  dartz: ^0.10.1
+  dio: ^5.11.1
+  equatable: ^3.0.0
   flutter:
     sdk: flutter
+  flutter_animate: ^4.5.2
+  flutter_bloc: ^9.1.1
+  flutter_svg: ^2.3.0
+  go_router: ^18.0.2
+  supabase: ^2.16.4
 
 dev_dependencies:
+  flutter_lints: ^6.0.0
   flutter_test:
     sdk: flutter
-  flutter_lints: ^6.0.0
+  very_good_analysis: ^11.0.0
 
 flutter:
   uses-material-design: true
+
+  assets:
+    - assets/images/
+    - assets/icons/
+    - .env
+
+  fonts:
+    - family: ClashDisplay
+      fonts:
+        - asset: assets/fonts/ClashDisplay-Extralight.otf
+          weight: 200
+        - asset: assets/fonts/ClashDisplay-Light.otf
+          weight: 300
+        - asset: assets/fonts/ClashDisplay-Regular.otf
+          weight: 400
+        - asset: assets/fonts/ClashDisplay-Medium.otf
+          weight: 500
+        - asset: assets/fonts/ClashDisplay-SemiBold.otf
+          weight: 600
+        - asset: assets/fonts/ClashDisplay-Bold.otf
+          weight: 700
