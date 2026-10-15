@@ -23,6 +23,7 @@ Every feature follows this strict 3-layer structure:
 
 ```javascript
 lib/features/<feature_name>/
+
 ├── data/
 │   ├── datasources/        # Remote API, local Drift DB, Supabase
 │   ├── models/             # Data models + mappers (toEntity/fromEntity)
@@ -31,10 +32,10 @@ lib/features/<feature_name>/
 │   ├── entities/           # Pure entities (zero Flutter dependency)
 │   ├── repositories/       # Abstract contracts (interfaces)
 │   └── usecases/           # One class = one use case
-└── presentation/
-    ├── bloc/               # <Feature>Bloc, <Feature>Event, <Feature>State
-    ├── pages/              # One widget = one screen
-    └── widgets/            # Reusable feature widgets
+│ presentation/   ├── bloc/               # <Feature>Bloc, <Feature>Event, <Feature>State
+│   ├── pages/              # One widget = one screen
+│   └── widgets/            # Reusable feature widgets
+└── <feature_name>_injection.dart # Injection de dépendances isolée de la feature
 ```
 
 - [ ] **Dependencies ALWAYS point inward**: presentation → domain ← data

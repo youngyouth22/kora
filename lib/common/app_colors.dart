@@ -4,14 +4,18 @@ import 'package:flutter/material.dart';
 
 /// Application color palette based on the "Amie UI Kit" Design System.
 ///
-/// Divided into 4 main groups:
+/// Divided into 5 main groups:
 /// 1. Primary (Emerald / Mint)
 /// 2. Secondary (Peach / Coral)
 /// 3. Neutral (Warm Sand / Beige)
 /// 4. Grey (Grayscale)
+/// 5. Error (Red Scale)
 abstract final class AppColors {
   // Base / Legacy
   static const Color baseColor = Color(0xFF212735);
+
+  // Scaffold color
+  static const Color scaffoldColor = Color(0xFFF9F6F0);
 
   // ===========================================================================
   // 1. PRIMARY GROUP (Mint / Emerald)
@@ -75,6 +79,21 @@ abstract final class AppColors {
   static const Color grey950 = Color(0xFF3A3A3A);
   static const Color grey1000 = Color(0xFF313131);
   static const Color grey1050 = Color(0xFF1F1F1F);
+
+  // ===========================================================================
+  // 5. ERROR GROUP (Red Scale)
+  // ===========================================================================
+  static const Color error = error400;
+  static const Color error25 = Color(0xFFFFFBFA);
+  static const Color error50 = Color(0xFFFEF3F2);
+  static const Color error100 = Color(0xFFFEE4E2);
+  static const Color error200 = Color(0xFFFECDCA);
+  static const Color error300 = Color(0xFFFDA29B);
+  static const Color error400 = Color(0xFFF04438); // Main Error
+  static const Color error500 = Color(0xFFD92D20);
+  static const Color error600 = Color(0xFFB42318);
+  static const Color error700 = Color(0xFF912018);
+  static const Color error800 = Color(0xFF7A271A);
 }
 
 /// Dedicated subgroup for primary shades (Primary / Mint).
@@ -121,7 +140,7 @@ abstract final class AppNeutralColors {
 
 /// Dedicated subgroup for grey shades (Grey / Grayscale).
 abstract final class AppGreyColors {
-  static const Color shade50 = AppColors.grey50;
+  static const Color white = AppColors.grey50;
   static const Color shade100 = AppColors.grey100;
   static const Color shade200 = AppColors.grey200;
   static const Color shade300 = AppColors.grey300;
@@ -134,4 +153,67 @@ abstract final class AppGreyColors {
   static const Color shade950 = AppColors.grey950;
   static const Color shade1000 = AppColors.grey1000;
   static const Color shade1050 = AppColors.grey1050;
+}
+
+/// Dedicated subgroup for error shades (Error / Red).
+abstract final class AppErrorColors {
+  static const Color shade25 = AppColors.error25;
+  static const Color shade50 = AppColors.error50;
+  static const Color shade100 = AppColors.error100;
+  static const Color shade200 = AppColors.error200;
+  static const Color shade300 = AppColors.error300;
+  static const Color shade400 = AppColors.error400;
+  static const Color shade500 = AppColors.error500;
+  static const Color shade600 = AppColors.error600;
+  static const Color shade700 = AppColors.error700;
+  static const Color shade800 = AppColors.error800;
+}
+
+/// Application gradient tokens based on the design system palette.
+abstract final class AppGradients {
+  /// Default primary gradient (mint to emerald).
+  static const LinearGradient primary = LinearGradient(
+    colors: [
+      AppPrimaryColors.shade600,
+      AppPrimaryColors.shade600,
+    ],
+    stops: [0.5, 1],
+    begin: Alignment.topCenter,
+    end: Alignment.bottomCenter,
+  );
+}
+
+/// Dedicated subgroup for Fitzpatrick scale (Type I to Type VI)
+/// skin tone swatches.
+abstract final class AppSkinToneColors {
+  static const Color typeI = Color(0xFFF9EAE1);
+  static const Color typeII = Color(0xFFF1D7C2);
+  static const Color typeIII = Color(0xFFDCB293);
+  static const Color typeIV = Color(0xFFB88258);
+  static const Color typeV = Color(0xFF885635);
+  static const Color typeVI = Color(0xFF4C2B1C);
+
+  // Named semantic aliases
+  static const Color veryFair = typeI;
+  static const Color fair = typeII;
+  static const Color medium = typeIII;
+  static const Color olive = typeIV;
+  static const Color brown = typeV;
+  static const Color deep = typeVI;
+
+  // Backward compatibility alias
+  static const Color light = typeII;
+  static const Color tan = typeIV;
+}
+
+/// Dedicated subgroup for question option category badges.
+abstract final class AppBadgeColors {
+  static const Color savingsBg = Color(0xFFFFEBF0);
+  static const Color savingsIcon = Color(0xFFF0447C);
+  static const Color valueBg = Color(0xFFE2F9EF);
+  static const Color valueIcon = Color(0xFF28946D);
+  static const Color innovativeBg = Color(0xFFE8EDFF);
+  static const Color innovativeIcon = Color(0xFF536DFE);
+  static const Color ultimateBg = Color(0xFFE0F5EE);
+  static const Color ultimateIcon = Color(0xFF1D6049);
 }

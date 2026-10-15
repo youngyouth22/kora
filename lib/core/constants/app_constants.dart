@@ -14,4 +14,7 @@ abstract final class AppConstants {
 
   /// Maximum photo upload retry count before failure.
   static const int maxPhotoUploadRetries = 3;
+
+  /// Hero animation tag for the Kora companion mascot transitions.
+  static const String mascotHeroTag = 'kora_mascot_hero';
 }

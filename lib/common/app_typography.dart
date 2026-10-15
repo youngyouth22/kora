@@ -56,7 +56,7 @@ class AppTypography {
   static TextStyle h3Medium = const TextStyle(
     fontSize: 32,
     fontWeight: FontWeight.w500,
-    height: 1.6,
+    height: 1.2,
   );
   static TextStyle h3Regular = const TextStyle(
     fontSize: 32,
@@ -66,27 +66,27 @@ class AppTypography {
   static TextStyle h4Bold = const TextStyle(
     fontSize: 24,
     fontWeight: FontWeight.w700,
-    height: 1.6,
+    height: 1.2,
   );
   static TextStyle h4SemiBold = const TextStyle(
     fontSize: 24,
     fontWeight: FontWeight.w600,
-    height: 1.6,
+    height: 1.2,
   );
   static TextStyle h4Medium = const TextStyle(
     fontSize: 24,
     fontWeight: FontWeight.w500,
-    height: 1.6,
+    height: 1.2,
   );
   static TextStyle h4Regular = const TextStyle(
     fontSize: 24,
     fontWeight: FontWeight.w400,
-    height: 1.6,
+    height: 1.2,
   );
   static TextStyle h5Bold = const TextStyle(
     fontSize: 20,
     fontWeight: FontWeight.w700,
-    height: 1.6,
+    height: 1.2,
   );
   static TextStyle h5SemiBold = const TextStyle(
     fontSize: 20,
@@ -242,5 +242,35 @@ class AppTypography {
     fontWeight: FontWeight.w400,
     height: 1.6,
     letterSpacing: 0.2,
+  );
+
+  // ===========================================================================
+  // Guided Capture Typography Tokens
+  // ===========================================================================
+  static TextStyle capturePillText = const TextStyle(
+    fontSize: 14,
+    fontWeight: FontWeight.w800,
+    letterSpacing: 0.4,
+  );
+
+  static TextStyle captureGuidanceText = const TextStyle(
+    fontSize: 15,
+    fontWeight: FontWeight.w600,
+  );
+
+  static TextStyle captureIndicatorChipText = const TextStyle(
+    fontSize: 13,
+    fontWeight: FontWeight.w600,
+  );
+
+  static TextStyle captureTipsTitle = const TextStyle(
+    fontSize: 18,
+    fontWeight: FontWeight.w700,
+  );
+
+  static TextStyle captureTipsBody = const TextStyle(
+    fontSize: 14,
+    fontWeight: FontWeight.w400,
+    height: 1.6,
   );
 }
