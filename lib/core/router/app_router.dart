@@ -14,8 +14,10 @@ import 'package:kora/core/router/route_transitions.dart';
 import 'package:kora/features/guided_capture/guided_capture_injection.dart';
 import 'package:kora/features/guided_capture/presentation/bloc/guided_capture_bloc.dart';
 import 'package:kora/features/guided_capture/presentation/pages/guided_capture_page.dart';
+import 'package:kora/features/guided_capture/presentation/pages/photo_review_page.dart';
 import 'package:kora/features/onboarding/onboarding_injection.dart';
 import 'package:kora/features/onboarding/presentation/bloc/onboarding_bloc.dart';
+import 'package:kora/features/onboarding/presentation/pages/camera_permission_screen.dart';
 import 'package:kora/features/onboarding/presentation/pages/demographics_screen.dart';
 import 'package:kora/features/onboarding/presentation/pages/disclaimer_screen.dart';
 import 'package:kora/features/onboarding/presentation/pages/mascot_screen.dart';
@@ -207,10 +209,7 @@ class AppRouter {
           pageBuilder: (context, state) => buildKoraTransitionPage(
             key: state.pageKey,
             name: state.name,
-            child: const RouteScreenPlaceholder(
-              title: 'Camera Permission',
-              routePath: AppRoutes.onboardingCamera,
-            ),
+            child: const CameraPermissionScreen(),
           ),
         ),
         GoRoute(
@@ -266,14 +265,16 @@ class AppRouter {
           path: AppRoutes.scanReview,
           name: AppRoutes.scanReviewName,
           parentNavigatorKey: _rootNavigatorKey,
-          pageBuilder: (context, state) => buildKoraTransitionPage(
-            key: state.pageKey,
-            name: state.name,
-            child: const RouteScreenPlaceholder(
-              title: 'Review Photo Quality',
-              routePath: AppRoutes.scanReview,
-            ),
-          ),
+          pageBuilder: (context, state) {
+            final imagePath = state.extra is String
+                ? state.extra! as String
+                : '';
+            return buildKoraTransitionPage(
+              key: state.pageKey,
+              name: state.name,
+              child: PhotoReviewPage(imagePath: imagePath),
+            );
+          },
         ),
         GoRoute(
           path: AppRoutes.scanAnalyzing,

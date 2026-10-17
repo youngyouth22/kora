@@ -1,4 +1,5 @@
 import 'package:get_it/get_it.dart';
+import 'package:kora/core/services/camera_permission_service.dart';
 import 'package:kora/features/guided_capture/guided_capture_injection.dart';
 import 'package:kora/features/onboarding/onboarding_injection.dart';
 import 'package:kora/features/splash/splash_injection.dart';
@@ -8,6 +9,11 @@ final GetIt sl = GetIt.instance;
 
 /// Central entry point to register all application dependencies.
 void configureDependencies() {
+  if (!sl.isRegistered<CameraPermissionService>()) {
+    sl.registerLazySingleton<CameraPermissionService>(
+      () => const DefaultCameraPermissionService(),
+    );
+  }
   initOnboardingInjection(sl);
   initSplashInjection(sl);
   initGuidedCaptureInjection(sl);

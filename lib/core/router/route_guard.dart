@@ -75,6 +75,9 @@ class RouteGuard {
     // 4. User HAS completed onboarding but tries to re-enter onboarding
     if (session.isOnboardingCompleted &&
         _isOnboardingRoute(sanitizedLocation)) {
+      if (sanitizedLocation == AppRoutes.onboardingCamera) {
+        return null;
+      }
       final intended = session.consumeIntendedDestination();
       if (intended != null &&
           intended != AppRoutes.splash &&

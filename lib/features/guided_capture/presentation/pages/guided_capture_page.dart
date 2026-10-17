@@ -6,7 +6,9 @@ import 'package:camera/camera.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:get_it/get_it.dart';
 import 'package:kora/common/app_colors.dart';
+import 'package:kora/core/router/app_session_state.dart';
 import 'package:kora/di/injection.dart';
 import 'package:kora/features/guided_capture/domain/entities/camera_frame_input.dart';
 import 'package:kora/features/guided_capture/domain/entities/face_analysis_result.dart';
@@ -23,27 +25,41 @@ import 'package:kora/features/guided_capture/presentation/widgets/top_bar_contro
 /// alignment.
 class GuidedCapturePage extends StatelessWidget {
   /// Creates a [GuidedCapturePage].
-  const GuidedCapturePage({required this.onCaptureSuccess, super.key});
+  const GuidedCapturePage({
+    required this.onCaptureSuccess,
+    this.sessionState,
+    super.key,
+  });
 
   /// Called with the high-resolution photo. The returned future should
   /// complete when the user comes back to this screen (e.g. after review),
   /// at which point scanning resumes.
   final Future<void> Function(XFile capturedPhoto) onCaptureSuccess;
 
+  /// Optional injected session state for first-scan guidance detection.
+  final AppSessionState? sessionState;
+
   @override
   Widget build(BuildContext context) {
     return BlocProvider<GuidedCaptureBloc>(
       create: (_) =>
           sl<GuidedCaptureBloc>()..add(const InitializeCaptureSessionEvent()),
-      child: _GuidedCaptureView(onCaptureSuccess: onCaptureSuccess),
+      child: _GuidedCaptureView(
+        onCaptureSuccess: onCaptureSuccess,
+        sessionState: sessionState,
+      ),
     );
   }
 }
 
 class _GuidedCaptureView extends StatefulWidget {
-  const _GuidedCaptureView({required this.onCaptureSuccess});
+  const _GuidedCaptureView({
+    required this.onCaptureSuccess,
+    this.sessionState,
+  });
 
   final Future<void> Function(XFile capturedPhoto) onCaptureSuccess;
+  final AppSessionState? sessionState;
 
   @override
   State<_GuidedCaptureView> createState() => _GuidedCaptureViewState();
@@ -58,6 +74,8 @@ class _GuidedCaptureViewState extends State<_GuidedCaptureView>
   var _isInitializing = false;
   var _isCapturingPhoto = false;
   var _hasCameraError = false;
+  var _isTutorialVisible = false;
+  var _hasSeenTutorialLocally = false;
 
   @override
   void initState() {
@@ -68,6 +86,34 @@ class _GuidedCaptureViewState extends State<_GuidedCaptureView>
       SystemChrome.setPreferredOrientations([DeviceOrientation.portraitUp]),
     );
     unawaited(_initCamera());
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      final session =
+          widget.sessionState ??
+          (GetIt.instance.isRegistered<AppSessionState>()
+              ? GetIt.instance<AppSessionState>()
+              : null);
+      if (session != null) {
+        if (!session.hasSeenCaptureTips) {
+          session.markCaptureTipsSeen();
+          unawaited(_showTutorialSheet());
+        }
+      } else if (!_hasSeenTutorialLocally) {
+        _hasSeenTutorialLocally = true;
+        unawaited(_showTutorialSheet());
+      }
+    });
+  }
+
+  Future<void> _showTutorialSheet() async {
+    if (_isTutorialVisible || !mounted) return;
+    setState(() => _isTutorialVisible = true);
+    _bloc.add(const ResetCaptureSessionEvent());
+    await CaptureTipsSheet.show(context);
+    if (mounted) {
+      _bloc.add(const ResetCaptureSessionEvent());
+      setState(() => _isTutorialVisible = false);
+    }
   }
 
   Future<void> _initCamera() async {
@@ -115,7 +161,9 @@ class _GuidedCaptureViewState extends State<_GuidedCaptureView>
 
   void _onCameraImage(CameraImage image) {
     final camera = _frontCamera;
-    if (!mounted || _isCapturingPhoto || camera == null) return;
+    if (!mounted || _isCapturingPhoto || camera == null || _isTutorialVisible) {
+      return;
+    }
 
     _bloc.add(
       CameraFrameReceivedEvent(
@@ -218,12 +266,13 @@ class _GuidedCaptureViewState extends State<_GuidedCaptureView>
             fit: StackFit.expand,
             children: [
               _FullScreenCameraPreview(controller: controller),
-              CaptureOvalGuide(
-                hasFace: state.hasFace,
-                alignmentScore: state.alignmentScore,
-                faceOffsetFromCenter: state.faceOffsetFromCenter,
-                isAllValid: state.isAllQualityMet,
-              ),
+              if (!_isTutorialVisible)
+                CaptureOvalGuide(
+                  hasFace: state.hasFace,
+                  alignmentScore: state.alignmentScore,
+                  faceOffsetFromCenter: state.faceOffsetFromCenter,
+                  isAllValid: state.isAllQualityMet,
+                ),
               SafeArea(
                 child: Column(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -232,18 +281,19 @@ class _GuidedCaptureViewState extends State<_GuidedCaptureView>
                       isLightOk: state.isLightOk,
                       isAllValid: state.isAllQualityMet,
                       onCancel: () => Navigator.of(context).maybePop(),
-                      onHelp: () => unawaited(CaptureTipsSheet.show(context)),
+                      onHelp: () => unawaited(_showTutorialSheet()),
                     ),
-                    BottomGuidancePanel(
-                      message: state.guidanceMessage,
-                      isPositionOk: state.isPositionOk,
-                      isLightOk: state.isLightOk,
-                      isAngleOk: state.isAngleOk,
-                      canManualCapture: state.isAllQualityMet,
-                      onManualCapture: () => context
-                          .read<GuidedCaptureBloc>()
-                          .add(const TriggerPhotoCaptureEvent()),
-                    ),
+                    if (!_isTutorialVisible)
+                      BottomGuidancePanel(
+                        message: state.guidanceMessage,
+                        isPositionOk: state.isPositionOk,
+                        isLightOk: state.isLightOk,
+                        isAngleOk: state.isAngleOk,
+                        canManualCapture: state.isAllQualityMet,
+                        onManualCapture: () => context
+                            .read<GuidedCaptureBloc>()
+                            .add(const TriggerPhotoCaptureEvent()),
+                      ),
                   ],
                 ),
               ),

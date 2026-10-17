@@ -1,0 +1,23 @@
+{
+  "version": 1,
+  "skills": {
+    "beauty-advisor": {
+      "source": "YouCam-API/skills",
+      "sourceType": "github",
+      "skillPath": "skills/beauty-advisor/SKILL.md",
+      "computedHash": "607acf9ddb0558bace12a23b63f12dc85eb538d9a4889f0a005d50ef11ee24b0"
+    },
+    "facial-consultant": {
+      "source": "YouCam-API/skills",
+      "sourceType": "github",
+      "skillPath": "skills/facial-consultant/SKILL.md",
+      "computedHash": "736dde589b27cb67c7069490fede76743b1e99bd651a8c7d8fa868d34db2447f"
+    },
+    "skin-analysis-expert": {
+      "source": "YouCam-API/skills",
+      "sourceType": "github",
+      "skillPath": "skills/skin-analysis-expert/SKILL.md",
+      "computedHash": "7bde48836ee5f00a989cf39c16d01575ad125039bbffd86c84a0756a014a8082"
+    }
+  }
+}

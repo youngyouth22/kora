@@ -17,6 +17,7 @@ class AppSessionState extends ChangeNotifier {
     bool hasActiveSubscription = false,
     bool isPaywallEnforced = false,
     bool isAccountSecureRequired = false,
+    bool hasSeenCaptureTips = false,
     String? intendedDestination,
   }) : _isInitialized = isInitialized,
        _isAuthenticated = isAuthenticated,
@@ -24,6 +25,7 @@ class AppSessionState extends ChangeNotifier {
        _hasActiveSubscription = hasActiveSubscription,
        _isPaywallEnforced = isPaywallEnforced,
        _isAccountSecureRequired = isAccountSecureRequired,
+       _hasSeenCaptureTips = hasSeenCaptureTips,
        _intendedDestination = intendedDestination;
 
   bool _isInitialized;
@@ -32,6 +34,7 @@ class AppSessionState extends ChangeNotifier {
   bool _hasActiveSubscription;
   bool _isPaywallEnforced;
   bool _isAccountSecureRequired;
+  bool _hasSeenCaptureTips;
   String? _intendedDestination;
 
   /// Whether the core app dependencies, Supabase session, and Drift DB
@@ -55,6 +58,9 @@ class AppSessionState extends ChangeNotifier {
 
   /// The deferred deep-link target path to restore after onboarding or auth.
   String? get intendedDestination => _intendedDestination;
+
+  /// Whether the user has already seen the first-scan capture guidance tips.
+  bool get hasSeenCaptureTips => _hasSeenCaptureTips;
 
   /// Marks the app initialization complete with the given session state.
   void completeInitialization({
@@ -127,6 +133,20 @@ class AppSessionState extends ChangeNotifier {
     return destination;
   }
 
+  /// Updates whether the capture tips bottom sheet has been viewed.
+  void setHasSeenCaptureTips({required bool seen}) {
+    if (_hasSeenCaptureTips == seen) return;
+    _hasSeenCaptureTips = seen;
+    notifyListeners();
+  }
+
+  /// Marks that capture tips have been seen (idempotent).
+  void markCaptureTipsSeen() {
+    if (_hasSeenCaptureTips) return;
+    _hasSeenCaptureTips = true;
+    notifyListeners();
+  }
+
   /// Resets the session state back to default uninitialized state.
   void reset() {
     _isInitialized = false;
@@ -135,6 +155,7 @@ class AppSessionState extends ChangeNotifier {
     _hasActiveSubscription = false;
     _isPaywallEnforced = false;
     _isAccountSecureRequired = false;
+    _hasSeenCaptureTips = false;
     _intendedDestination = null;
     notifyListeners();
   }

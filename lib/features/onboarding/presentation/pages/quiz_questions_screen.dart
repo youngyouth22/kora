@@ -339,7 +339,7 @@ class _QuizQuestionsScreenState extends State<QuizQuestionsScreen> {
           session?.setIntendedDestination(AppRoutes.scanCapture);
           session?.setOnboardingCompleted(completed: true);
           if (GoRouter.maybeOf(context) != null) {
-            context.go(AppRoutes.scanCapture);
+            context.go(AppRoutes.onboardingCamera);
           }
           return;
         }
