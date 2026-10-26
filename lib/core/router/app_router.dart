@@ -11,21 +11,60 @@ import 'package:kora/core/router/route_error_screen.dart';
 import 'package:kora/core/router/route_guard.dart';
 import 'package:kora/core/router/route_screen_placeholder.dart';
 import 'package:kora/core/router/route_transitions.dart';
+import 'package:kora/features/auth/auth_injection.dart';
+import 'package:kora/features/auth/presentation/bloc/auth_bloc.dart';
+import 'package:kora/features/auth/presentation/pages/account_secure_page.dart';
+import 'package:kora/features/coach/presentation/pages/coach_chat_page.dart';
+import 'package:kora/features/coach/presentation/pages/coach_page.dart';
+import 'package:kora/features/coach/presentation/pages/learn_page.dart';
+import 'package:kora/features/coach/presentation/pages/learn_video_page.dart';
+import 'package:kora/features/coach/presentation/pages/shop_page.dart';
+import 'package:kora/features/coach/presentation/pages/shop_product_page.dart';
+import 'package:kora/features/experiment/presentation/pages/experiment_detail_page.dart';
+import 'package:kora/features/experiment/presentation/pages/experiment_verdict_page.dart';
+import 'package:kora/features/experiment/presentation/pages/new_experiment_page.dart';
 import 'package:kora/features/guided_capture/guided_capture_injection.dart';
 import 'package:kora/features/guided_capture/presentation/bloc/guided_capture_bloc.dart';
 import 'package:kora/features/guided_capture/presentation/pages/guided_capture_page.dart';
 import 'package:kora/features/guided_capture/presentation/pages/photo_review_page.dart';
+import 'package:kora/features/guided_capture/presentation/pages/scan_guide_screen.dart';
+import 'package:kora/features/home/presentation/pages/home_page.dart';
+import 'package:kora/features/notifications/notifications_injection.dart';
+import 'package:kora/features/notifications/presentation/bloc/notification_bloc.dart';
+import 'package:kora/features/notifications/presentation/bloc/notification_event.dart';
+import 'package:kora/features/notifications/presentation/pages/notification_reminder_screen.dart';
 import 'package:kora/features/onboarding/onboarding_injection.dart';
 import 'package:kora/features/onboarding/presentation/bloc/onboarding_bloc.dart';
 import 'package:kora/features/onboarding/presentation/pages/camera_permission_screen.dart';
 import 'package:kora/features/onboarding/presentation/pages/demographics_screen.dart';
 import 'package:kora/features/onboarding/presentation/pages/disclaimer_screen.dart';
 import 'package:kora/features/onboarding/presentation/pages/mascot_screen.dart';
+import 'package:kora/features/onboarding/presentation/pages/onboarding_build_screen.dart';
+import 'package:kora/features/onboarding/presentation/pages/onboarding_consent_screen.dart';
+import 'package:kora/features/onboarding/presentation/pages/onboarding_how_screen.dart';
 import 'package:kora/features/onboarding/presentation/pages/quiz_questions_screen.dart';
 import 'package:kora/features/onboarding/presentation/pages/welcome_screen.dart';
+import 'package:kora/features/product_scanner/presentation/pages/product_scanner_page.dart';
+import 'package:kora/features/profile/presentation/pages/help_page.dart';
+import 'package:kora/features/profile/presentation/pages/notifications_page.dart';
+import 'package:kora/features/profile/presentation/pages/privacy_page.dart';
+import 'package:kora/features/profile/presentation/pages/profile_page.dart';
+import 'package:kora/features/profile/presentation/pages/subscription_page.dart';
+import 'package:kora/features/progress/presentation/pages/compare_scans_page.dart';
+import 'package:kora/features/progress/presentation/pages/concern_detail_page.dart';
+import 'package:kora/features/progress/presentation/pages/progress_page.dart';
+import 'package:kora/features/routine/presentation/pages/add_product_page.dart';
+import 'package:kora/features/routine/presentation/pages/ingredient_analysis_page.dart';
+import 'package:kora/features/routine/presentation/pages/product_scan_tutorial_page.dart';
+import 'package:kora/features/routine/presentation/pages/routine_page.dart';
+import 'package:kora/features/skin_analysis/domain/entities/skin_analysis_result.dart';
+import 'package:kora/features/skin_analysis/presentation/pages/scan_analyzing_page.dart';
+import 'package:kora/features/skin_analysis/presentation/pages/scan_result_page.dart';
 import 'package:kora/features/splash/presentation/bloc/splash_bloc.dart';
 import 'package:kora/features/splash/presentation/pages/splash_screen.dart';
 import 'package:kora/features/splash/splash_injection.dart';
+import 'package:kora/features/subscription/presentation/bloc/subscription_bloc.dart';
+import 'package:kora/features/subscription/presentation/pages/kora_paywall_page.dart';
 
 /// Top-level factory for creating the enterprise [GoRouter] configuration.
 class AppRouter {
@@ -38,6 +77,9 @@ class AppRouter {
        _routeGuard = routeGuard ?? const RouteGuard(),
        _rootNavigatorKey =
            rootNavigatorKey ?? GlobalKey<NavigatorState>(debugLabel: 'root') {
+    if (!GetIt.instance.isRegistered<AppSessionState>()) {
+      GetIt.instance.registerSingleton<AppSessionState>(_sessionState);
+    }
     _router = _buildRouter();
   }
 
@@ -106,7 +148,9 @@ class AppRouter {
               pageBuilder: (context, state) => buildKoraTransitionPage(
                 key: state.pageKey,
                 name: state.name,
-                child: const WelcomeScreen(),
+                child: WelcomeScreen(
+                  sessionState: _sessionState,
+                ),
               ),
             ),
             GoRoute(
@@ -170,10 +214,7 @@ class AppRouter {
           pageBuilder: (context, state) => buildKoraTransitionPage(
             key: state.pageKey,
             name: state.name,
-            child: const RouteScreenPlaceholder(
-              title: 'Building Routine',
-              routePath: AppRoutes.onboardingBuild,
-            ),
+            child: const OnboardingBuildScreen(),
           ),
         ),
         GoRoute(
@@ -183,10 +224,7 @@ class AppRouter {
           pageBuilder: (context, state) => buildKoraTransitionPage(
             key: state.pageKey,
             name: state.name,
-            child: const RouteScreenPlaceholder(
-              title: 'How Kora Works',
-              routePath: AppRoutes.onboardingHow,
-            ),
+            child: const OnboardingHowScreen(),
           ),
         ),
         GoRoute(
@@ -196,10 +234,7 @@ class AppRouter {
           pageBuilder: (context, state) => buildKoraTransitionPage(
             key: state.pageKey,
             name: state.name,
-            child: const RouteScreenPlaceholder(
-              title: 'Consent & Privacy',
-              routePath: AppRoutes.onboardingConsent,
-            ),
+            child: const OnboardingConsentScreen(),
           ),
         ),
         GoRoute(
@@ -216,14 +251,23 @@ class AppRouter {
           path: AppRoutes.onboardingReminder,
           name: AppRoutes.onboardingReminderName,
           parentNavigatorKey: _rootNavigatorKey,
-          pageBuilder: (context, state) => buildKoraTransitionPage(
-            key: state.pageKey,
-            name: state.name,
-            child: const RouteScreenPlaceholder(
-              title: 'Scan Reminder',
-              routePath: AppRoutes.onboardingReminder,
-            ),
-          ),
+          pageBuilder: (context, state) {
+            final getIt = GetIt.instance;
+            if (!getIt.isRegistered<NotificationBloc>()) {
+              initNotificationsInjection(getIt);
+            }
+            return buildKoraTransitionPage(
+              key: state.pageKey,
+              name: state.name,
+              child: BlocProvider<NotificationBloc>(
+                create: (_) =>
+                    getIt<NotificationBloc>()..add(const NotificationStarted()),
+                child: NotificationReminderScreen(
+                  sessionState: _sessionState,
+                ),
+              ),
+            );
+          },
         ),
 
         // =====================================================================
@@ -236,10 +280,7 @@ class AppRouter {
           pageBuilder: (context, state) => buildKoraTransitionPage(
             key: state.pageKey,
             name: state.name,
-            child: const RouteScreenPlaceholder(
-              title: 'Scan Guide',
-              routePath: AppRoutes.scanGuide,
-            ),
+            child: const ScanGuideScreen(),
           ),
         ),
         GoRoute(
@@ -280,28 +321,50 @@ class AppRouter {
           path: AppRoutes.scanAnalyzing,
           name: AppRoutes.scanAnalyzingName,
           parentNavigatorKey: _rootNavigatorKey,
-          pageBuilder: (context, state) => buildKoraTransitionPage(
-            key: state.pageKey,
-            name: state.name,
-            child: const RouteScreenPlaceholder(
-              title: 'Analyzing Skin',
-              routePath: AppRoutes.scanAnalyzing,
-              showBackButton: false,
-            ),
-          ),
+          pageBuilder: (context, state) {
+            final imagePath = state.extra is String
+                ? state.extra! as String
+                : '';
+            return buildKoraTransitionPage(
+              key: state.pageKey,
+              name: state.name,
+              child: ScanAnalyzingPage(imagePath: imagePath),
+            );
+          },
         ),
         GoRoute(
           path: AppRoutes.scanResult,
           name: AppRoutes.scanResultName,
           parentNavigatorKey: _rootNavigatorKey,
+          pageBuilder: (context, state) {
+            if (state.extra is SkinAnalysisResult) {
+              return buildKoraTransitionPage(
+                key: state.pageKey,
+                name: state.name,
+                child: ScanResultPage(
+                  result: state.extra! as SkinAnalysisResult,
+                ),
+              );
+            }
+            return buildKoraTransitionPage(
+              key: state.pageKey,
+              name: state.name,
+              child: RouteScreenPlaceholder(
+                title: 'Scan Result',
+                routePath: AppRoutes.scanResult,
+                parameters: state.pathParameters,
+              ),
+            );
+          },
+        ),
+        GoRoute(
+          path: AppRoutes.productScanTutorial,
+          name: AppRoutes.productScanTutorialName,
+          parentNavigatorKey: _rootNavigatorKey,
           pageBuilder: (context, state) => buildKoraTransitionPage(
             key: state.pageKey,
             name: state.name,
-            child: RouteScreenPlaceholder(
-              title: 'Scan Result',
-              routePath: AppRoutes.scanResult,
-              parameters: state.pathParameters,
-            ),
+            child: const ProductScanTutorialPage(),
           ),
         ),
 
@@ -315,9 +378,9 @@ class AppRouter {
           pageBuilder: (context, state) => buildKoraTransitionPage(
             key: state.pageKey,
             name: state.name,
-            child: const RouteScreenPlaceholder(
-              title: 'Unlock Kora Premium',
-              routePath: AppRoutes.paywall,
+            child: BlocProvider<SubscriptionBloc>(
+              create: (_) => GetIt.instance<SubscriptionBloc>(),
+              child: const KoraPaywallPage(),
             ),
           ),
         ),
@@ -325,14 +388,20 @@ class AppRouter {
           path: AppRoutes.accountSecure,
           name: AppRoutes.accountSecureName,
           parentNavigatorKey: _rootNavigatorKey,
-          pageBuilder: (context, state) => buildKoraTransitionPage(
-            key: state.pageKey,
-            name: state.name,
-            child: const RouteScreenPlaceholder(
-              title: 'Secure Account',
-              routePath: AppRoutes.accountSecure,
-            ),
-          ),
+          pageBuilder: (context, state) {
+            final getIt = GetIt.instance;
+            if (!getIt.isRegistered<AuthBloc>()) {
+              initAuthInjection(getIt);
+            }
+            return buildKoraTransitionPage(
+              key: state.pageKey,
+              name: state.name,
+              child: BlocProvider<AuthBloc>(
+                create: (_) => getIt<AuthBloc>(),
+                child: const AccountSecurePage(),
+              ),
+            );
+          },
         ),
 
         // =====================================================================
@@ -345,10 +414,7 @@ class AppRouter {
           pageBuilder: (context, state) => buildKoraTransitionPage(
             key: state.pageKey,
             name: state.name,
-            child: const RouteScreenPlaceholder(
-              title: 'New Experiment',
-              routePath: AppRoutes.experimentNew,
-            ),
+            child: const NewExperimentPage(),
           ),
         ),
         GoRoute(
@@ -358,10 +424,8 @@ class AppRouter {
           pageBuilder: (context, state) => buildKoraTransitionPage(
             key: state.pageKey,
             name: state.name,
-            child: RouteScreenPlaceholder(
-              title: 'Experiment Detail',
-              routePath: AppRoutes.experimentDetail,
-              parameters: state.pathParameters,
+            child: ExperimentDetailPage(
+              experimentId: state.pathParameters[AppRoutes.paramId] ?? '1',
             ),
           ),
         ),
@@ -372,12 +436,82 @@ class AppRouter {
           pageBuilder: (context, state) => buildKoraTransitionPage(
             key: state.pageKey,
             name: state.name,
-            child: RouteScreenPlaceholder(
-              title: 'Experiment Verdict',
-              routePath: AppRoutes.experimentVerdict,
-              parameters: state.pathParameters,
+            child: ExperimentVerdictPage(
+              experimentId: state.pathParameters[AppRoutes.paramId] ?? '1',
             ),
           ),
+        ),
+
+        // =====================================================================
+        // COACH, AI COMPANION & EDUCATION (FULL SCREEN)
+        // =====================================================================
+        GoRoute(
+          path: AppRoutes.coach,
+          name: AppRoutes.coachName,
+          parentNavigatorKey: _rootNavigatorKey,
+          pageBuilder: (context, state) => buildKoraTransitionPage(
+            key: state.pageKey,
+            name: state.name,
+            child: const CoachPage(),
+          ),
+        ),
+        GoRoute(
+          path: AppRoutes.coachChat,
+          name: AppRoutes.coachChatName,
+          parentNavigatorKey: _rootNavigatorKey,
+          pageBuilder: (context, state) => buildKoraTransitionPage(
+            key: state.pageKey,
+            name: state.name,
+            child: CoachChatPage(
+              initialQuestion: state.extra as String?,
+            ),
+          ),
+        ),
+        GoRoute(
+          path: AppRoutes.learn,
+          name: AppRoutes.learnName,
+          parentNavigatorKey: _rootNavigatorKey,
+          pageBuilder: (context, state) => buildKoraTransitionPage(
+            key: state.pageKey,
+            name: state.name,
+            child: const LearnPage(),
+          ),
+          routes: [
+            GoRoute(
+              path: 'video/:id',
+              name: AppRoutes.learnVideoName,
+              pageBuilder: (context, state) => buildKoraTransitionPage(
+                key: state.pageKey,
+                name: state.name,
+                child: LearnVideoPage(
+                  videoId: state.pathParameters['id'] ?? '1',
+                ),
+              ),
+            ),
+          ],
+        ),
+        GoRoute(
+          path: AppRoutes.shop,
+          name: AppRoutes.shopName,
+          parentNavigatorKey: _rootNavigatorKey,
+          pageBuilder: (context, state) => buildKoraTransitionPage(
+            key: state.pageKey,
+            name: state.name,
+            child: const ShopPage(),
+          ),
+          routes: [
+            GoRoute(
+              path: 'product/:id',
+              name: AppRoutes.shopProductName,
+              pageBuilder: (context, state) => buildKoraTransitionPage(
+                key: state.pageKey,
+                name: state.name,
+                child: ShopProductPage(
+                  productId: state.pathParameters['id'] ?? 'p1',
+                ),
+              ),
+            ),
+          ],
         ),
 
         // =====================================================================
@@ -400,10 +534,77 @@ class AppRouter {
                   pageBuilder: (context, state) => buildKoraTransitionPage(
                     key: state.pageKey,
                     name: state.name,
+                    child: const HomePage(),
+                  ),
+                ),
+              ],
+            ),
+
+            // -----------------------------------------------------------------
+            // Branch 1: Products & Routine
+            // -----------------------------------------------------------------
+            StatefulShellBranch(
+              routes: [
+                GoRoute(
+                  path: AppRoutes.routine,
+                  name: AppRoutes.routineName,
+                  pageBuilder: (context, state) => buildKoraTransitionPage(
+                    key: state.pageKey,
+                    name: state.name,
+                    child: const RoutinePage(),
+                  ),
+                  routes: [
+                    GoRoute(
+                      path: 'add',
+                      name: AppRoutes.routineAddName,
+                      pageBuilder: (context, state) => buildKoraTransitionPage(
+                        key: state.pageKey,
+                        name: state.name,
+                        child: const AddProductPage(),
+                      ),
+                    ),
+                    GoRoute(
+                      path: 'label',
+                      name: AppRoutes.routineLabelName,
+                      // Full-screen camera: render above the shell so the
+                      // bottom navigation bar is hidden.
+                      parentNavigatorKey: _rootNavigatorKey,
+                      pageBuilder: (context, state) => buildKoraTransitionPage(
+                        key: state.pageKey,
+                        name: state.name,
+                        child: const ProductScannerPage(),
+                      ),
+                    ),
+                    GoRoute(
+                      path: 'ingredients/:id',
+                      name: AppRoutes.routineIngredientsName,
+                      pageBuilder: (context, state) => buildKoraTransitionPage(
+                        key: state.pageKey,
+                        name: state.name,
+                        child: IngredientAnalysisPage(
+                          productId: state.pathParameters['id'] ?? 'demo-1',
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+
+            // -----------------------------------------------------------------
+            // Branch 2: Skin Check
+            // -----------------------------------------------------------------
+            StatefulShellBranch(
+              routes: [
+                GoRoute(
+                  path: AppRoutes.skinCheck,
+                  name: AppRoutes.skinCheckName,
+                  pageBuilder: (context, state) => buildKoraTransitionPage(
+                    key: state.pageKey,
+                    name: state.name,
                     child: const RouteScreenPlaceholder(
-                      title: 'Home Dashboard',
-                      routePath: AppRoutes.home,
-                      showBackButton: false,
+                      title: 'Skin Checks',
+                      routePath: AppRoutes.skinCheck,
                     ),
                   ),
                 ),
@@ -411,7 +612,7 @@ class AppRouter {
             ),
 
             // -----------------------------------------------------------------
-            // Branch 1: Progress & Comparison
+            // Branch 3: Progress & Comparison
             // -----------------------------------------------------------------
             StatefulShellBranch(
               routes: [
@@ -421,11 +622,7 @@ class AppRouter {
                   pageBuilder: (context, state) => buildKoraTransitionPage(
                     key: state.pageKey,
                     name: state.name,
-                    child: const RouteScreenPlaceholder(
-                      title: 'Skin Progress',
-                      routePath: AppRoutes.progress,
-                      showBackButton: false,
-                    ),
+                    child: const ProgressPage(),
                   ),
                   routes: [
                     GoRoute(
@@ -434,10 +631,9 @@ class AppRouter {
                       pageBuilder: (context, state) => buildKoraTransitionPage(
                         key: state.pageKey,
                         name: state.name,
-                        child: RouteScreenPlaceholder(
-                          title: 'Concern Progression',
-                          routePath: AppRoutes.progressConcern,
-                          parameters: state.pathParameters,
+                        child: ConcernDetailPage(
+                          concernType:
+                              state.pathParameters['type'] ?? 'dark_spots',
                         ),
                       ),
                     ),
@@ -449,147 +645,11 @@ class AppRouter {
                   pageBuilder: (context, state) => buildKoraTransitionPage(
                     key: state.pageKey,
                     name: state.name,
-                    child: RouteScreenPlaceholder(
-                      title: 'Compare Scans',
-                      routePath: AppRoutes.compare,
-                      parameters: state.pathParameters,
+                    child: CompareScansPage(
+                      scanAId: state.pathParameters['a'] ?? 'scan_1',
+                      scanBId: state.pathParameters['b'] ?? 'scan_4',
                     ),
                   ),
-                ),
-              ],
-            ),
-
-            // -----------------------------------------------------------------
-            // Branch 2: Routine
-            // -----------------------------------------------------------------
-            StatefulShellBranch(
-              routes: [
-                GoRoute(
-                  path: AppRoutes.routine,
-                  name: AppRoutes.routineName,
-                  pageBuilder: (context, state) => buildKoraTransitionPage(
-                    key: state.pageKey,
-                    name: state.name,
-                    child: const RouteScreenPlaceholder(
-                      title: 'Skincare Routine',
-                      routePath: AppRoutes.routine,
-                      showBackButton: false,
-                    ),
-                  ),
-                  routes: [
-                    GoRoute(
-                      path: 'add',
-                      name: AppRoutes.routineAddName,
-                      pageBuilder: (context, state) => buildKoraTransitionPage(
-                        key: state.pageKey,
-                        name: state.name,
-                        child: const RouteScreenPlaceholder(
-                          title: 'Add Routine Product',
-                          routePath: AppRoutes.routineAdd,
-                        ),
-                      ),
-                    ),
-                    GoRoute(
-                      path: 'label',
-                      name: AppRoutes.routineLabelName,
-                      pageBuilder: (context, state) => buildKoraTransitionPage(
-                        key: state.pageKey,
-                        name: state.name,
-                        child: const RouteScreenPlaceholder(
-                          title: 'Scan Product Label',
-                          routePath: AppRoutes.routineLabel,
-                        ),
-                      ),
-                    ),
-                    GoRoute(
-                      path: 'ingredients/:id',
-                      name: AppRoutes.routineIngredientsName,
-                      pageBuilder: (context, state) => buildKoraTransitionPage(
-                        key: state.pageKey,
-                        name: state.name,
-                        child: RouteScreenPlaceholder(
-                          title: 'Product Ingredients',
-                          routePath: AppRoutes.routineIngredients,
-                          parameters: state.pathParameters,
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ],
-            ),
-
-            // -----------------------------------------------------------------
-            // Branch 3: Coach, Learn & Shop
-            // -----------------------------------------------------------------
-            StatefulShellBranch(
-              routes: [
-                GoRoute(
-                  path: AppRoutes.coach,
-                  name: AppRoutes.coachName,
-                  pageBuilder: (context, state) => buildKoraTransitionPage(
-                    key: state.pageKey,
-                    name: state.name,
-                    child: const RouteScreenPlaceholder(
-                      title: 'AI Skin Coach',
-                      routePath: AppRoutes.coach,
-                      showBackButton: false,
-                    ),
-                  ),
-                ),
-                GoRoute(
-                  path: AppRoutes.learn,
-                  name: AppRoutes.learnName,
-                  pageBuilder: (context, state) => buildKoraTransitionPage(
-                    key: state.pageKey,
-                    name: state.name,
-                    child: const RouteScreenPlaceholder(
-                      title: 'Skin Academy',
-                      routePath: AppRoutes.learn,
-                    ),
-                  ),
-                  routes: [
-                    GoRoute(
-                      path: 'video/:id',
-                      name: AppRoutes.learnVideoName,
-                      pageBuilder: (context, state) => buildKoraTransitionPage(
-                        key: state.pageKey,
-                        name: state.name,
-                        child: RouteScreenPlaceholder(
-                          title: 'Video Guide',
-                          routePath: AppRoutes.learnVideo,
-                          parameters: state.pathParameters,
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-                GoRoute(
-                  path: AppRoutes.shop,
-                  name: AppRoutes.shopName,
-                  pageBuilder: (context, state) => buildKoraTransitionPage(
-                    key: state.pageKey,
-                    name: state.name,
-                    child: const RouteScreenPlaceholder(
-                      title: 'Recommended Shop',
-                      routePath: AppRoutes.shop,
-                    ),
-                  ),
-                  routes: [
-                    GoRoute(
-                      path: 'product/:id',
-                      name: AppRoutes.shopProductName,
-                      pageBuilder: (context, state) => buildKoraTransitionPage(
-                        key: state.pageKey,
-                        name: state.name,
-                        child: RouteScreenPlaceholder(
-                          title: 'Product Detail',
-                          routePath: AppRoutes.shopProduct,
-                          parameters: state.pathParameters,
-                        ),
-                      ),
-                    ),
-                  ],
                 ),
               ],
             ),
@@ -605,59 +665,47 @@ class AppRouter {
                   pageBuilder: (context, state) => buildKoraTransitionPage(
                     key: state.pageKey,
                     name: state.name,
-                    child: const RouteScreenPlaceholder(
-                      title: 'My Profile',
-                      routePath: AppRoutes.profile,
-                      showBackButton: false,
-                    ),
+                    child: const ProfilePage(),
                   ),
                   routes: [
                     GoRoute(
                       path: 'subscription',
                       name: AppRoutes.profileSubscriptionName,
+                      parentNavigatorKey: _rootNavigatorKey,
                       pageBuilder: (context, state) => buildKoraTransitionPage(
                         key: state.pageKey,
                         name: state.name,
-                        child: const RouteScreenPlaceholder(
-                          title: 'Subscription',
-                          routePath: AppRoutes.profileSubscription,
-                        ),
+                        child: const SubscriptionPage(),
                       ),
                     ),
                     GoRoute(
                       path: 'privacy',
                       name: AppRoutes.profilePrivacyName,
+                      parentNavigatorKey: _rootNavigatorKey,
                       pageBuilder: (context, state) => buildKoraTransitionPage(
                         key: state.pageKey,
                         name: state.name,
-                        child: const RouteScreenPlaceholder(
-                          title: 'Privacy & Data',
-                          routePath: AppRoutes.profilePrivacy,
-                        ),
+                        child: const PrivacyPage(),
                       ),
                     ),
                     GoRoute(
                       path: 'notifications',
                       name: AppRoutes.profileNotificationsName,
+                      parentNavigatorKey: _rootNavigatorKey,
                       pageBuilder: (context, state) => buildKoraTransitionPage(
                         key: state.pageKey,
                         name: state.name,
-                        child: const RouteScreenPlaceholder(
-                          title: 'Notifications',
-                          routePath: AppRoutes.profileNotifications,
-                        ),
+                        child: const NotificationsPage(),
                       ),
                     ),
                     GoRoute(
                       path: 'help',
                       name: AppRoutes.profileHelpName,
+                      parentNavigatorKey: _rootNavigatorKey,
                       pageBuilder: (context, state) => buildKoraTransitionPage(
                         key: state.pageKey,
                         name: state.name,
-                        child: const RouteScreenPlaceholder(
-                          title: 'Help & Support',
-                          routePath: AppRoutes.profileHelp,
-                        ),
+                        child: const HelpPage(),
                       ),
                     ),
                   ],

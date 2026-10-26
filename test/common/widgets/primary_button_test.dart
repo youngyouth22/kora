@@ -289,5 +289,130 @@ void main() {
       expect(find.byIcon(Icons.check), findsOneWidget);
       expect(find.text('With Icon'), findsOneWidget);
     });
+
+    testWidgets('provides accessible Semantics with default text label', (
+      tester,
+    ) async {
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: PrimaryButton(
+              text: 'Continue',
+              onPressed: () {},
+            ),
+          ),
+        ),
+      );
+
+      expect(
+        find.byWidgetPredicate(
+          (widget) =>
+              widget is Semantics &&
+              widget.properties.label == 'Continue' &&
+              (widget.properties.button ?? false) &&
+              (widget.properties.enabled ?? false),
+        ),
+        findsOneWidget,
+      );
+    });
+
+    testWidgets('provides accessible Semantics with custom semanticLabel', (
+      tester,
+    ) async {
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: PrimaryButton(
+              text: 'Save',
+              semanticLabel: 'Save profile changes',
+              onPressed: () {},
+            ),
+          ),
+        ),
+      );
+
+      expect(
+        find.byWidgetPredicate(
+          (widget) =>
+              widget is Semantics &&
+              widget.properties.label == 'Save profile changes' &&
+              (widget.properties.button ?? false) &&
+              (widget.properties.enabled ?? false),
+        ),
+        findsOneWidget,
+      );
+    });
+
+    testWidgets(
+      'Semantics reflects disabled state when isDisabled or onPressed is null',
+      (
+        tester,
+      ) async {
+        await tester.pumpWidget(
+          MaterialApp(
+            home: Scaffold(
+              body: Column(
+                children: [
+                  PrimaryButton(
+                    text: 'Disabled explicit',
+                    isDisabled: true,
+                    onPressed: () {},
+                  ),
+                  const PrimaryButton(
+                    text: 'Disabled null onPressed',
+                  ),
+                ],
+              ),
+            ),
+          ),
+        );
+
+        expect(
+          find.byWidgetPredicate(
+            (widget) =>
+                widget is Semantics &&
+                widget.properties.label == 'Disabled explicit' &&
+                !(widget.properties.enabled ?? true),
+          ),
+          findsOneWidget,
+        );
+
+        expect(
+          find.byWidgetPredicate(
+            (widget) =>
+                widget is Semantics &&
+                widget.properties.label == 'Disabled null onPressed' &&
+                !(widget.properties.enabled ?? true),
+          ),
+          findsOneWidget,
+        );
+      },
+    );
+
+    testWidgets('Semantics reflects disabled state when isLoading is true', (
+      tester,
+    ) async {
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: PrimaryButton(
+              text: 'Submitting',
+              isLoading: true,
+              onPressed: () {},
+            ),
+          ),
+        ),
+      );
+
+      expect(
+        find.byWidgetPredicate(
+          (widget) =>
+              widget is Semantics &&
+              widget.properties.label == 'Submitting' &&
+              !(widget.properties.enabled ?? true),
+        ),
+        findsOneWidget,
+      );
+    });
   });
 }

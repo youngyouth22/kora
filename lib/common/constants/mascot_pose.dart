@@ -7,7 +7,10 @@ enum MascotPose {
   writing('assets/mascot/mascot_writing.png'),
 
   /// The mascot celebrating success.
-  success('assets/mascot/mascot_success.png');
+  success('assets/mascot/mascot_success.png'),
+
+  /// The mascot calling to action.
+  callToAction('assets/mascot/mascot_ai.png');
 
   /// Creates a [MascotPose] with its associated asset [path].
   const MascotPose(this.path);

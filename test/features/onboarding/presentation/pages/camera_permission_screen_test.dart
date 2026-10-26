@@ -53,16 +53,10 @@ void main() {
         ),
       );
 
-      expect(find.text('Enable Camera Access'), findsOneWidget);
       expect(
-        find.text(
-          'To analyze your skin and guide your posture in real time, '
-          'Kora needs access to your front camera.',
-        ),
+        find.textContaining('Allow Kora to use your camera'),
         findsOneWidget,
       );
-      expect(find.text('Live Face Alignment'), findsOneWidget);
-      expect(find.text('Private & Secure'), findsOneWidget);
       expect(find.text('Enable Camera'), findsOneWidget);
       expect(find.text('Maybe Later'), findsOneWidget);
       expect(find.byType(EmptyStateView), findsNothing);

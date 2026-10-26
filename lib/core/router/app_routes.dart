@@ -146,6 +146,13 @@ abstract final class AppRoutes {
   /// Route name for home.
   static const String homeName = 'home';
 
+  // 2. Skin Check Shell Tab
+  /// Skin check tab in main navigation shell.
+  static const String skinCheck = '/skin-check';
+
+  /// Route name for skin check.
+  static const String skinCheckName = 'skin_check';
+
   // 2. Progress & Comparison
   /// Skin progress overview.
   static const String progress = '/progress';
@@ -184,6 +191,12 @@ abstract final class AppRoutes {
   /// Route name for routine label.
   static const String routineLabelName = 'routine_label';
 
+  /// First-time product scan tutorial guidance screen.
+  static const String productScanTutorial = '/routine/scan-tutorial';
+
+  /// Route name for product scan tutorial.
+  static const String productScanTutorialName = 'product_scan_tutorial';
+
   /// Product ingredient breakdown: `/routine/ingredients/:id`.
   static const String routineIngredients = '/routine/ingredients/:id';
 
@@ -210,11 +223,17 @@ abstract final class AppRoutes {
   static const String experimentVerdictName = 'experiment_verdict';
 
   // 5. Coach, Learn & Shop
-  /// AI skin coach chat.
+  /// AI skin coach companion hub.
   static const String coach = '/coach';
 
   /// Route name for coach.
   static const String coachName = 'coach';
+
+  /// Active AI skin coach chat conversation.
+  static const String coachChat = '/coach/chat';
+
+  /// Route name for coach chat.
+  static const String coachChatName = 'coach_chat';
 
   /// Skincare academy / articles.
   static const String learn = '/learn';

@@ -116,7 +116,8 @@ async function run(uid: string, body: Record<string, unknown>): Promise<Response
 
   try {
     const actions = scan.mode === 'HD' ? HD_ACTIONS : SD_ACTIONS;
-    const taskId = await createSkinTask({ fileId: scan.api_file_id, actions });
+    const enableOverlay = typeof body.enable_mask_overlay === 'boolean' ? body.enable_mask_overlay : undefined;
+    const taskId = await createSkinTask({ fileId: scan.api_file_id, actions, enableMaskOverlay: enableOverlay });
     await admin.from('scans').update({ api_task_id: taskId }).eq('id', scanId);
   } catch (e) {
     const code = e instanceof YoucamError ? e.code : 'provider_unavailable';
@@ -143,18 +144,66 @@ async function status(uid: string, body: Record<string, unknown>): Promise<Respo
     await pollAndFinalize(scanId);
     row = await loadScan(admin, scanId, uid);
   }
+
   const failed = row.status === 'failed';
   const ue = failed ? mapYoucamError(row.error_code ?? '') : null;
+
+  let resultsPayload = row.result_json?.results ?? null;
+
+  // If scan is done, enrich response so Flutter's SkinAnalysisResultModel.fromJson gets concerns & masks
+  if (row.status === 'done') {
+    const concernsRes = await admin.from('scan_concerns')
+      .select('concern,zone,raw_score,ui_score,mask_path')
+      .eq('scan_id', scanId);
+    const storedConcerns = concernsRes.data ?? [];
+
+    // Generate signed URLs for stored mask paths in private 'scan-masks' bucket (1 hour validity)
+    const signedConcerns = await Promise.all(storedConcerns.map(async (c) => {
+      let maskUrl: string | null = null;
+      if (c.mask_path) {
+        const signed = await admin.storage.from('scan-masks').createSignedUrl(c.mask_path, 3600);
+        maskUrl = signed.data?.signedUrl ?? null;
+      }
+      return {
+        ...c,
+        signed_mask_url: maskUrl,
+      };
+    }));
+
+    if (!resultsPayload) {
+      resultsPayload = {
+        overall: row.overall_score,
+        skin_age: row.skin_age,
+        output: signedConcerns.map((c) => ({
+          type: c.concern,
+          region: c.zone,
+          raw_score: c.raw_score,
+          ui_score: c.ui_score,
+          mask_urls: c.signed_mask_url ? [c.signed_mask_url] : [],
+        })),
+      };
+    }
+  }
+
   return json({
-    scan_id: scanId, status: row.status, overall_score: row.overall_score, skin_age: row.skin_age,
-    error_code: row.error_code, message: ue?.message ?? null, retake: ue?.retake ?? null,
+    scan_id: scanId,
+    status: row.status,
+    overall_score: row.overall_score,
+    skin_age: row.skin_age,
+    error_code: row.error_code,
+    message: ue?.message ?? null,
+    retake: ue?.retake ?? null,
+    // Provide both top-level and nested structures for full compatibility with Flutter models
+    results: resultsPayload,
+    data: resultsPayload ? { results: resultsPayload } : null,
   });
 }
 
 // ------------------------------------------------------------ background
 async function loadScan(admin: Admin, scanId: string, uid: string) {
   const r = await admin.from('scans')
-    .select('id,user_id,status,api_task_id,error_code,overall_score,skin_age').eq('id', scanId).eq('user_id', uid).maybeSingle();
+    .select('id,user_id,status,api_task_id,error_code,overall_score,skin_age,result_json')
+    .eq('id', scanId).eq('user_id', uid).maybeSingle();
   if (r.error) throw new HttpError(500, 'db_error', r.error.message);
   if (!r.data) throw new HttpError(404, 'scan_not_found');
   return r.data;

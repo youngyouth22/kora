@@ -16,11 +16,74 @@ abstract final class AppThemes {
       surface: AppColors.scaffoldColor,
       error: AppErrorColors.shade400,
     ),
-    appBarTheme: const AppBarTheme(
+    appBarTheme: AppBarTheme(
       leadingWidth: 24,
       backgroundColor: Colors.transparent,
       elevation: 0,
-      systemOverlayStyle: SystemUiOverlayStyle.dark,
+      systemOverlayStyle: SystemUiOverlayStyle.dark.copyWith(
+        systemNavigationBarContrastEnforced: false,
+      ),
+    ),
+    inputDecorationTheme: InputDecorationTheme(
+      filled: true,
+      fillColor: AppGreyColors.white,
+      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+      hintStyle: const TextStyle(
+        color: AppGreyColors.shade600,
+        fontSize: 16,
+        fontWeight: FontWeight.w400,
+      ),
+      labelStyle: const TextStyle(
+        color: AppGreyColors.shade800,
+        fontSize: 16,
+        fontWeight: FontWeight.w500,
+      ),
+      errorStyle: const TextStyle(
+        color: AppErrorColors.shade400,
+        fontSize: 12,
+        fontWeight: FontWeight.w400,
+      ),
+      border: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(12),
+        borderSide: const BorderSide(
+          color: AppGreyColors.shade400,
+          width: 1.2,
+        ),
+      ),
+      enabledBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(12),
+        borderSide: const BorderSide(
+          color: AppGreyColors.shade400,
+          width: 1.2,
+        ),
+      ),
+      focusedBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(12),
+        borderSide: const BorderSide(
+          color: AppPrimaryColors.shade500,
+          width: 1.5,
+        ),
+      ),
+      errorBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(12),
+        borderSide: const BorderSide(
+          color: AppErrorColors.shade400,
+          width: 1.2,
+        ),
+      ),
+      focusedErrorBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(12),
+        borderSide: const BorderSide(
+          color: AppErrorColors.shade500,
+          width: 1.5,
+        ),
+      ),
+      disabledBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(12),
+        borderSide: const BorderSide(
+          color: AppGreyColors.shade300,
+        ),
+      ),
     ),
     // dividerColor: AppColors.greyScale200,
     // dividerTheme: const DividerThemeData(color: AppColors.greyScale200),

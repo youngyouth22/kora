@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
+import 'package:kora/core/router/app_session_state.dart';
 import 'package:kora/features/onboarding/data/datasources/onboarding_local_datasource.dart';
 import 'package:kora/features/onboarding/data/datasources/onboarding_remote_datasource.dart';
 import 'package:kora/features/onboarding/data/repositories/onboarding_repository_impl.dart';
@@ -109,4 +110,39 @@ void main() {
 
     expect(find.text('Mascot Screen'), findsOneWidget);
   });
+
+  testWidgets(
+    'tapping I already have an account marks onboarding completed and '
+    'navigates to home',
+    (tester) async {
+      final sessionState = AppSessionState();
+      final router = GoRouter(
+        initialLocation: '/welcome',
+        routes: [
+          GoRoute(
+            path: '/welcome',
+            builder: (context, state) => WelcomeScreen(
+              sessionState: sessionState,
+            ),
+          ),
+          GoRoute(
+            path: '/home',
+            builder: (context, state) =>
+                const Scaffold(body: Text('Home Shell Screen')),
+          ),
+        ],
+      );
+
+      await tester.pumpWidget(buildTestWidget(router: router));
+      await tester.pumpAndSettle();
+
+      expect(sessionState.isOnboardingCompleted, isFalse);
+
+      await tester.tap(find.text('I already have an account'));
+      await tester.pumpAndSettle();
+
+      expect(sessionState.isOnboardingCompleted, isTrue);
+      expect(find.text('Home Shell Screen'), findsOneWidget);
+    },
+  );
 }

@@ -1,13 +1,18 @@
 // ignore_for_file: document_ignores
 
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:kora/common/app_themes.dart';
 import 'package:kora/core/core.dart';
+import 'package:kora/core/services/revenue_cat_service.dart';
 import 'package:kora/di/injection.dart';
+import 'package:kora/features/notifications/data/datasources/notification_local_datasource.dart';
 
-void main() {
+void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   configureDependencies();
+  await RevenueCatService.initialize();
   runApp(const MainApp());
 }
 
@@ -33,6 +38,21 @@ class _MainAppState extends State<MainApp> {
   void initState() {
     super.initState();
     _appRouter = widget.appRouter ?? AppRouter();
+    _initNotifications();
+  }
+
+  void _initNotifications() {
+    try {
+      if (sl.isRegistered<NotificationLocalDataSource>()) {
+        unawaited(
+          sl<NotificationLocalDataSource>().initialize(
+            onNotificationTapped: (payload) {
+              unawaited(_appRouter.router.push(payload.targetRoute));
+            },
+          ),
+        );
+      }
+    } on Object catch (_) {}
   }
 
   @override

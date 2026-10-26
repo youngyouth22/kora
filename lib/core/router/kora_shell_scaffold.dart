@@ -1,14 +1,19 @@
-// ignore_for_file: document_ignores
+import 'dart:async';
 
+import 'package:adaptive_responsive_nav/adaptive_responsive_nav.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:kora/common/app_colors.dart';
 import 'package:kora/common/app_typography.dart';
+import 'package:kora/common/image_resources.dart';
+import 'package:kora/features/guided_capture/presentation/widgets/new_scan_selection_sheet.dart';
 
-/// Bottom navigation bar shell scaffold for main application tabs.
+/// Responsive shell scaffold for main application tabs (Home, Progress,
+/// Routine, Coach, Profile).
 ///
-/// Follows Kora design tokens ([AppColors], [AppTypography]) and
-/// accessibility guidelines (Semantics, >= 48dp touch targets).
+/// Uses the reusable [AdaptiveResponsiveScaffold] to adapt between an
+/// animated bottom navigation bar on compact mobile devices and an animated
+/// navigation rail on tablet and desktop devices.
 class KoraShellScaffold extends StatelessWidget {
   /// Creates a [KoraShellScaffold] wrapping [navigationShell].
   const KoraShellScaffold({
@@ -19,131 +24,63 @@ class KoraShellScaffold extends StatelessWidget {
   /// The stateful navigation shell managing active branch and child stack.
   final StatefulNavigationShell navigationShell;
 
-  void _onItemTapped(int index) {
-    navigationShell.goBranch(
-      index,
-      initialLocation: index == navigationShell.currentIndex,
-    );
-  }
-
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
+    return AdaptiveResponsiveScaffold(
+      navigationShell: navigationShell,
+      onDestinationTap: (index) {
+        if (index == 2) {
+          unawaited(NewScanSelectionSheet.show(context));
+          return false;
+        }
+        return true;
+      },
       backgroundColor: AppColors.neutral50,
-      body: navigationShell,
-      bottomNavigationBar: Container(
-        decoration: const BoxDecoration(
-          color: AppColors.grey50,
-          border: Border(
-            top: BorderSide(
-              color: AppColors.grey300,
-              width: 0.5,
-            ),
-          ),
-        ),
-        child: SafeArea(
-          top: false,
-          child: SizedBox(
-            height: 64,
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceAround,
-              children: [
-                _NavBarItem(
-                  icon: Icons.home_rounded,
-                  label: 'Home',
-                  isSelected: navigationShell.currentIndex == 0,
-                  onTap: () => _onItemTapped(0),
-                  semanticLabel: 'Navigate to Home screen',
-                ),
-                _NavBarItem(
-                  icon: Icons.insights_rounded,
-                  label: 'Progress',
-                  isSelected: navigationShell.currentIndex == 1,
-                  onTap: () => _onItemTapped(1),
-                  semanticLabel: 'Navigate to Skin Progress screen',
-                ),
-                _NavBarItem(
-                  icon: Icons.spa_rounded,
-                  label: 'Routine',
-                  isSelected: navigationShell.currentIndex == 2,
-                  onTap: () => _onItemTapped(2),
-                  semanticLabel: 'Navigate to Routine screen',
-                ),
-                _NavBarItem(
-                  icon: Icons.chat_bubble_outline_rounded,
-                  label: 'Coach',
-                  isSelected: navigationShell.currentIndex == 3,
-                  onTap: () => _onItemTapped(3),
-                  semanticLabel: 'Navigate to AI Skin Coach screen',
-                ),
-                _NavBarItem(
-                  icon: Icons.person_outline_rounded,
-                  label: 'Profile',
-                  isSelected: navigationShell.currentIndex == 4,
-                  onTap: () => _onItemTapped(4),
-                  semanticLabel: 'Navigate to Profile and Settings screen',
-                ),
-              ],
-            ),
-          ),
-        ),
+      bottomBarBackgroundColor: AppColors.grey50,
+      railBackgroundColor: AppColors.grey50,
+      selectedColor: AppColors.primary700,
+      unselectedColor: AppColors.grey700,
+      indicatorColor: AppColors.primary100,
+      dividerColor: AppColors.grey400,
+      selectedLabelStyle: AppTypography.bodyXsMedium.copyWith(
+        color: AppColors.primary700,
+        fontWeight: FontWeight.w600,
       ),
-    );
-  }
-}
-
-class _NavBarItem extends StatelessWidget {
-  const _NavBarItem({
-    required this.icon,
-    required this.label,
-    required this.isSelected,
-    required this.onTap,
-    required this.semanticLabel,
-  });
-
-  static const Color _activeColor = AppColors.primary700;
-  static const Color _inactiveColor = AppColors.grey700;
-
-  final IconData icon;
-  final String label;
-  final bool isSelected;
-  final VoidCallback onTap;
-  final String semanticLabel;
-
-  @override
-  Widget build(BuildContext context) {
-    return Semantics(
-      label: semanticLabel,
-      button: true,
-      selected: isSelected,
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(16),
-        child: ConstrainedBox(
-          constraints: const BoxConstraints(
-            minWidth: 56,
-            minHeight: 48,
-          ),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Icon(
-                icon,
-                size: 24,
-                color: isSelected ? _activeColor : _inactiveColor,
-              ),
-              const SizedBox(height: 2),
-              Text(
-                label,
-                style: AppTypography.bodyXsMedium.copyWith(
-                  color: isSelected ? _activeColor : _inactiveColor,
-                ),
-              ),
-            ],
-          ),
-        ),
+      unselectedLabelStyle: AppTypography.bodyXsMedium.copyWith(
+        color: AppColors.grey700,
       ),
+      destinations: const [
+        AdaptiveNavDestination(
+          index: 0,
+          title: 'Home',
+          icon: ImageResources.homeIcon,
+          semanticLabel: 'Navigate to Home screen',
+        ),
+        AdaptiveNavDestination(
+          index: 1,
+          title: 'Routine',
+          icon: ImageResources.productIcon,
+          semanticLabel: 'Navigate to Products and Routine screen',
+        ),
+        AdaptiveNavDestination(
+          index: 2,
+          title: 'Skin Check',
+          icon: ImageResources.scanIcon,
+          semanticLabel: 'Navigate to Skin Check screen',
+        ),
+        AdaptiveNavDestination(
+          index: 3,
+          title: 'Progress',
+          icon: ImageResources.progressIcon,
+          semanticLabel: 'Navigate to Skin Progress screen',
+        ),
+        AdaptiveNavDestination(
+          index: 4,
+          title: 'Me',
+          icon: ImageResources.profileIcon,
+          semanticLabel: 'Navigate to Profile and Settings screen',
+        ),
+      ],
     );
   }
 }

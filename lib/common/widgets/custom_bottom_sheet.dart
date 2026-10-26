@@ -32,6 +32,7 @@ Future<T?> showCustomModalBottomSheet<T>({
   bool isDismissible = true,
   bool useBlur = true,
   double blurSigma = 3.0,
+  double? height,
   double? maxHeight,
   double maxHeightFactor = 0.9,
   BorderRadiusGeometry? borderRadius,
@@ -47,6 +48,7 @@ Future<T?> showCustomModalBottomSheet<T>({
     backgroundColor: backgroundColor,
     dragHandleColor: dragHandleColor,
     showDragHandle: showDragHandle,
+    height: height,
     maxHeight: maxHeight,
     maxHeightFactor: maxHeightFactor,
     borderRadius: borderRadius,
@@ -85,6 +87,7 @@ class CustomBottomSheetContent extends StatelessWidget {
     this.backgroundColor,
     this.dragHandleColor,
     this.showDragHandle = true,
+    this.height,
     this.maxHeight,
     this.maxHeightFactor = 0.9,
     this.borderRadius,
@@ -114,6 +117,10 @@ class CustomBottomSheetContent extends StatelessWidget {
   /// Whether to render the drag indicator pill at the top. Defaults to true.
   final bool showDragHandle;
 
+  /// Explicit height constraint for the sheet. When set, the sheet takes
+  /// this exact height instead of wrapping content.
+  final double? height;
+
   /// Explicit maximum height constraint. Overrides [maxHeightFactor].
   final double? maxHeight;
 
@@ -135,10 +142,15 @@ class CustomBottomSheetContent extends StatelessWidget {
   Widget build(BuildContext context) {
     final mediaQuery = MediaQuery.of(context);
     final calculatedMaxHeight =
-        maxHeight ?? (mediaQuery.size.height * maxHeightFactor);
+        height ?? maxHeight ?? (mediaQuery.size.height * maxHeightFactor);
     final effectiveBorderRadius =
         borderRadius ?? const BorderRadius.vertical(top: Radius.circular(24));
     final effectiveBgColor = backgroundColor ?? AppColors.scaffoldColor;
+    final isExplicitFill = height != null && !isScrollable;
+
+    final effectiveContent = isExplicitFill
+        ? Expanded(child: content)
+        : content;
 
     final children = <Widget>[
       if (showDragHandle)
@@ -183,24 +195,34 @@ class CustomBottomSheetContent extends StatelessWidget {
           ),
         ),
       ],
-      if (contentPadding != null)
-        Padding(
-          padding: contentPadding!,
-          child: content,
-        )
-      else
-        content,
+      if (contentPadding != null) ...[
+        if (isExplicitFill)
+          Expanded(
+            child: Padding(
+              padding: contentPadding!,
+              child: content,
+            ),
+          )
+        else
+          Padding(
+            padding: contentPadding!,
+            child: effectiveContent,
+          ),
+      ] else
+        effectiveContent,
     ];
 
     final body = Column(
-      mainAxisSize: MainAxisSize.min,
+      mainAxisSize: isExplicitFill ? MainAxisSize.max : MainAxisSize.min,
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: children,
     );
 
     return Container(
       width: double.infinity,
+      height: height,
       constraints: BoxConstraints(maxHeight: calculatedMaxHeight),
+      clipBehavior: Clip.antiAlias,
       decoration: BoxDecoration(
         color: effectiveBgColor,
         borderRadius: effectiveBorderRadius,

@@ -31,6 +31,7 @@ class PrimaryButton extends StatelessWidget {
   /// * [borderRadius], [height], and [width] customize button geometry.
   /// * [textStyle] overrides the typography token.
   /// * [side] configures an optional border outline (e.g. 1px width).
+  /// * [semanticLabel] optional accessibility label overriding [text].
   const PrimaryButton({
     required this.text,
     super.key,
@@ -47,6 +48,7 @@ class PrimaryButton extends StatelessWidget {
     this.textStyle,
     this.iconAlignment,
     this.side,
+    this.semanticLabel,
   });
 
   /// The text to display on the button.
@@ -93,6 +95,9 @@ class PrimaryButton extends StatelessWidget {
   /// The alignment of the icon relative to the button label.
   final IconAlignment? iconAlignment;
 
+  /// An optional semantic label for screen readers. Defaults to [text].
+  final String? semanticLabel;
+
   @override
   Widget build(BuildContext context) {
     final effectivelyDisabled = isDisabled || (onPressed == null && !isLoading);
@@ -128,7 +133,14 @@ class PrimaryButton extends StatelessWidget {
       icon: icon,
       iconAlignment: iconAlignment,
       label: isLoading
-          ? const CircularProgressIndicator()
+          ? SizedBox(
+              width: 20,
+              height: 20,
+              child: CircularProgressIndicator(
+                strokeWidth: 2.5,
+                color: effectiveTextColor,
+              ),
+            )
           : Text(
               text,
               style:
@@ -149,10 +161,16 @@ class PrimaryButton extends StatelessWidget {
       );
     }
 
-    return SizedBox(
-      width: width,
-      height: height,
-      child: button,
+    return Semantics(
+      container: true,
+      button: true,
+      enabled: !effectivelyDisabled && !isLoading,
+      label: semanticLabel ?? text,
+      child: SizedBox(
+        width: width,
+        height: height,
+        child: button,
+      ),
     );
   }
 }

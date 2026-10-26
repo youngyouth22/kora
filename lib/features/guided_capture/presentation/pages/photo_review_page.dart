@@ -2,10 +2,12 @@ import 'dart:async';
 import 'dart:io';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart';
 import 'package:kora/common/app_colors.dart';
 import 'package:kora/common/app_typography.dart';
 import 'package:kora/common/widgets/primary_button.dart';
+import 'package:kora/common/widgets/secondary_button.dart';
 import 'package:kora/core/router/app_routes.dart';
 
 /// Screen allowing the user to review their captured photo before proceeding
@@ -44,41 +46,45 @@ class PhotoReviewPage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: AppGreyColors.shade1050,
-      body: SafeArea(
-        top: false,
-        child: Column(
-          children: [
-            Expanded(
-              flex: 8,
-              child: _PhotoPreviewSection(
-                imagePath: imagePath,
-                imageProvider: imageProvider,
+    return AnnotatedRegion(
+      value: SystemUiOverlayStyle.light,
+      child: Scaffold(
+        backgroundColor: AppGreyColors.shade1050,
+        body: SafeArea(
+          top: false,
+          child: Stack(
+            children: [
+              Positioned.fill(
+                child: _PhotoPreviewSection(
+                  imagePath: imagePath,
+                  imageProvider: imageProvider,
+                ),
               ),
-            ),
-            Expanded(
-              flex: 2,
-              child: _ActionBarSection(
-                onRetake: () {
-                  if (onRetake != null) {
-                    onRetake!();
-                  } else {
-                    Navigator.of(context).maybePop();
-                  }
-                },
-                onUsePhoto: () {
-                  if (onUsePhoto != null) {
-                    onUsePhoto!(imagePath);
-                  } else {
-                    unawaited(
-                      context.push(AppRoutes.scanAnalyzing, extra: imagePath),
-                    );
-                  }
-                },
+              Positioned(
+                bottom: 0,
+                left: 0,
+                right: 0,
+                child: _ActionBarSection(
+                  onRetake: () {
+                    if (onRetake != null) {
+                      onRetake!();
+                    } else {
+                      Navigator.of(context).maybePop();
+                    }
+                  },
+                  onUsePhoto: () {
+                    if (onUsePhoto != null) {
+                      onUsePhoto!(imagePath);
+                    } else {
+                      unawaited(
+                        context.push(AppRoutes.scanAnalyzing, extra: imagePath),
+                      );
+                    }
+                  },
+                ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );
@@ -99,56 +105,54 @@ class _PhotoPreviewSection extends StatelessWidget {
     return Container(
       width: double.infinity,
       color: AppGreyColors.shade1050,
-      child: ClipRRect(
-        borderRadius: const BorderRadius.vertical(bottom: Radius.circular(24)),
-        child: Stack(
-          fit: StackFit.expand,
-          children: [
-            InteractiveViewer(
-              minScale: 1,
-              maxScale: 4,
-              child: Center(child: _buildImage()),
-            ),
-            SafeArea(
-              child: Align(
-                alignment: Alignment.topCenter,
-                child: Padding(
-                  padding: const EdgeInsets.only(top: 12),
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 14,
-                      vertical: 6,
+      child: Stack(
+        fit: StackFit.expand,
+        children: [
+          InteractiveViewer(
+            minScale: 1,
+            maxScale: 4,
+            child: Center(child: _buildImage()),
+          ),
+          SafeArea(
+            child: Align(
+              alignment: Alignment.topCenter,
+              child: Padding(
+                padding: const EdgeInsets.only(top: 12),
+                child: Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 14,
+                    vertical: 6,
+                  ),
+                  decoration: BoxDecoration(
+                    color: AppGreyColors.shade1050.withValues(alpha: 0.65),
+                    borderRadius: BorderRadius.circular(100),
+                    border: Border.all(
+                      color: AppGreyColors.shade800,
+                      width: 0.8,
                     ),
-                    decoration: BoxDecoration(
-                      color: AppGreyColors.shade1050.withValues(alpha: 0.65),
-                      borderRadius: BorderRadius.circular(100),
-                      border: Border.all(
-                        color: AppGreyColors.shade800,
-                        width: 0.8,
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const Icon(
+                        Icons.zoom_in,
+                        color: AppGreyColors.white,
+                        size: 16,
                       ),
-                    ),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        const Icon(
-                          Icons.zoom_in,
+                      const SizedBox(width: 6),
+                      Text(
+                        'Pinch to inspect quality',
+                        style: AppTypography.captureIndicatorChipText.copyWith(
                           color: AppGreyColors.white,
-                          size: 16,
                         ),
-                        const SizedBox(width: 6),
-                        Text(
-                          'Pinch to inspect quality',
-                          style: AppTypography.captureIndicatorChipText
-                              .copyWith(color: AppGreyColors.white),
-                        ),
-                      ],
-                    ),
+                      ),
+                    ],
                   ),
                 ),
               ),
             ),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }
@@ -218,43 +222,31 @@ class _ActionBarSection extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      width: double.infinity,
-      color: AppGreyColors.shade1050,
-      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-      child: Center(
-        child: Row(
-          children: [
-            
-            
-            Expanded(
-              child: Semantics(
-                button: true,
-                label: 'Use this photo for skin analysis',
-                child: PrimaryButton(
-                  text: 'Use this photo',
-                  onPressed: onUsePhoto,
-                ),
-              ),
+      padding: const EdgeInsets.symmetric(vertical: 32, horizontal: 24),
+      decoration: const BoxDecoration(
+        color: AppGreyColors.white,
+        borderRadius: BorderRadius.vertical(top: Radius.circular(32)),
+      ),
+      child: Column(
+        spacing: 12,
+        children: [
+          Semantics(
+            button: true,
+            label: 'Use this photo for skin analysis',
+            child: PrimaryButton(
+              text: 'Use this photo',
+              onPressed: onUsePhoto,
             ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Semantics(
-                button: true,
-                label: 'Retake photo',
-                child: PrimaryButton(
-                  text: 'Retake',
-                  backgroundColor: Colors.transparent,
-                  textColor: AppGreyColors.white,
-                  side: const BorderSide(
-                    color: AppGreyColors.shade600,
-                    width: 1.5,
-                  ),
-                  onPressed: onRetake,
-                ),
-              ),
+          ),
+          Semantics(
+            button: true,
+            label: 'Retake photo',
+            child: SecondaryButton(
+              text: 'Retake',
+              onPressed: onRetake,
             ),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }

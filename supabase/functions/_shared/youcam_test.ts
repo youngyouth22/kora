@@ -35,6 +35,22 @@ Deno.test('parseSkinResults: tolerates empty / unexpected shapes', () => {
   assertEquals(parseSkinResults({ results: { output: 'nope' } }).concerns.length, 0);
 });
 
+Deno.test('parseSkinResults: parses skin_type and region breakdowns', () => {
+  const r = parseSkinResults({
+    results: {
+      output: [
+        { type: 'skin_type', region: 'whole', skin_type: 'Combination', mask_urls: ['https://x/mask.png'] },
+        { type: 'skin_type', region: 't_zone', skin_type: 'Oily' },
+        { type: 'skin_type', region: 'u_zone', skin_type: 'Normal' },
+      ],
+    },
+  });
+  assertEquals(r.skinType?.overall, 'Combination');
+  assertEquals(r.skinType?.tZone, 'Oily');
+  assertEquals(r.skinType?.uZone, 'Normal');
+  assertEquals(r.skinType?.masks, ['https://x/mask.png']);
+});
+
 Deno.test('mapYoucamError: documented codes map to actionable messages', () => {
   assert(mapYoucamError('error_lighting_dark').message.startsWith('Too dark'));
   assert(mapYoucamError('error_src_face_too_small').retake);

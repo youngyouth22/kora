@@ -1,7 +1,14 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:kora/core/core.dart';
+import 'package:kora/features/coach/presentation/pages/coach_page.dart';
+import 'package:kora/features/coach/presentation/widgets/coach_bottom_sheet.dart';
 import 'package:kora/features/guided_capture/presentation/pages/guided_capture_page.dart';
+import 'package:kora/features/home/presentation/pages/home_page.dart';
 import 'package:kora/features/onboarding/presentation/pages/welcome_screen.dart';
+import 'package:kora/features/profile/presentation/pages/profile_page.dart';
+import 'package:kora/features/profile/presentation/pages/subscription_page.dart';
+import 'package:kora/features/progress/presentation/pages/progress_page.dart';
+import 'package:kora/features/routine/presentation/pages/routine_page.dart';
 import 'package:kora/features/splash/presentation/pages/splash_screen.dart';
 import 'package:kora/main.dart';
 
@@ -38,35 +45,55 @@ void main() {
         await tester.pumpWidget(MainApp(appRouter: router));
         await tester.pumpAndSettle();
 
-        expect(find.text('Home Dashboard'), findsOneWidget);
+        expect(find.byType(HomePage), findsOneWidget);
 
         // Tap on Routine Tab
         await tester.tap(find.text('Routine'));
         await tester.pumpAndSettle();
 
-        expect(find.text('Skincare Routine'), findsOneWidget);
-        expect(find.text('/routine'), findsOneWidget);
-
-        // Tap on Coach Tab
-        await tester.tap(find.text('Coach'));
-        await tester.pumpAndSettle();
-
-        expect(find.text('AI Skin Coach'), findsOneWidget);
-        expect(find.text('/coach'), findsOneWidget);
+        expect(find.byType(RoutinePage), findsOneWidget);
 
         // Tap on Progress Tab
         await tester.tap(find.text('Progress'));
         await tester.pumpAndSettle();
 
-        expect(find.text('Skin Progress'), findsOneWidget);
-        expect(find.text('/progress'), findsOneWidget);
+        expect(find.byType(ProgressPage), findsOneWidget);
 
-        // Tap on Profile Tab
-        await tester.tap(find.text('Profile'));
+        // Tap on Me Tab
+        await tester.tap(find.text('Me'));
         await tester.pumpAndSettle();
 
-        expect(find.text('My Profile'), findsOneWidget);
-        expect(find.text('/profile'), findsOneWidget);
+        expect(find.byType(ProfilePage), findsOneWidget);
+
+        // Return to Home Tab
+        await tester.tap(find.text('Home'));
+        await tester.pumpAndSettle();
+
+        expect(find.byType(HomePage), findsOneWidget);
+
+        // Tap Mascot FAB to open Coach Hub bottom sheet
+        await tester.tap(
+          find.bySemanticsLabel('Open AI Skincare Companion Chat'),
+        );
+        await tester.pumpAndSettle();
+
+        expect(find.byType(CoachBottomSheetContent), findsOneWidget);
+
+        // Tap New Chat FAB to navigate to chat conversation in PageView
+        await tester.tap(find.text('New Chat'));
+        await tester.pumpAndSettle();
+
+        expect(find.text('Write your question...'), findsOneWidget);
+
+        // Close bottom sheet
+        await tester.tap(find.bySemanticsLabel('Close chat'));
+        await tester.pumpAndSettle();
+
+        // Verify direct GoRouter navigation to CoachPage
+        router.router.go(AppRoutes.coach);
+        await tester.pumpAndSettle();
+
+        expect(find.byType(CoachPage), findsOneWidget);
       },
     );
 
@@ -94,7 +121,7 @@ void main() {
       await tester.tap(find.text('Back to Home'));
       await tester.pumpAndSettle();
 
-      expect(find.text('Home Dashboard'), findsOneWidget);
+      expect(find.byType(HomePage), findsOneWidget);
     });
 
     testWidgets('renders parameter values on dynamic routes', (tester) async {
@@ -133,5 +160,43 @@ void main() {
 
       expect(find.byType(GuidedCapturePage), findsOneWidget);
     });
+
+    testWidgets(
+      'profile subroutes hide bottom navigation bar and render full screen',
+      (tester) async {
+        final session = AppSessionState(
+          isInitialized: true,
+          isOnboardingCompleted: true,
+        );
+        final router = AppRouter(sessionState: session);
+
+        await tester.pumpWidget(MainApp(appRouter: router));
+        await tester.pumpAndSettle();
+
+        // Navigate to Profile tab
+        await tester.tap(find.text('Me'));
+        await tester.pumpAndSettle();
+        expect(find.byType(ProfilePage), findsOneWidget);
+
+        // Tap on Subscription
+        await tester.tap(find.text('Subscription'));
+        await tester.pumpAndSettle();
+
+        expect(find.byType(SubscriptionPage), findsOneWidget);
+
+        // Pop back to Profile
+        await tester.pageBack();
+        await tester.pumpAndSettle();
+
+        expect(find.byType(ProfilePage), findsOneWidget);
+        expect(
+          find.descendant(
+            of: find.byType(ProfilePage),
+            matching: find.text('Me'),
+          ),
+          findsOneWidget,
+        );
+      },
+    );
   });
 }

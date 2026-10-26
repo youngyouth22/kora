@@ -100,12 +100,9 @@ void main() {
       expect(find.text('Pinch to inspect quality'), findsOneWidget);
       expect(find.byType(InteractiveViewer), findsOneWidget);
 
-      // Verify 80% and 20% flex partitioning
-      final expandedWidgets = tester
-          .widgetList<Expanded>(find.byType(Expanded))
-          .toList();
-      expect(expandedWidgets.any((e) => e.flex == 8), isTrue);
-      expect(expandedWidgets.any((e) => e.flex == 2), isTrue);
+      // Verify Stack partitioning with full-bleed preview and bottom action bar
+      expect(find.byType(Stack), findsWidgets);
+      expect(find.byType(InteractiveViewer), findsOneWidget);
     });
 
     testWidgets('displays fallback view when image file does not exist', (

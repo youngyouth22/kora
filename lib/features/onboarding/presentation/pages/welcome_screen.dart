@@ -4,11 +4,15 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:get_it/get_it.dart';
 import 'package:go_router/go_router.dart';
 import 'package:kora/common/app_colors.dart';
 import 'package:kora/common/app_typography.dart';
 import 'package:kora/common/widgets/primary_button.dart';
 import 'package:kora/core/router/app_routes.dart';
+import 'package:kora/core/router/app_session_state.dart';
+import 'package:kora/core/usecase/usecase.dart';
+import 'package:kora/features/onboarding/domain/usecases/complete_onboarding_usecase.dart';
 import 'package:kora/features/onboarding/presentation/bloc/onboarding_bloc.dart';
 import 'package:kora/features/onboarding/presentation/bloc/onboarding_event.dart';
 import 'package:kora/features/onboarding/presentation/widgets/onboarding_curve_visual.dart';
@@ -29,17 +33,26 @@ class WelcomeScreen extends StatefulWidget {
   /// Creates a [WelcomeScreen].
   const WelcomeScreen({
     this.source = 'app_store',
+    this.sessionState,
     super.key,
   });
 
   /// Attribution source for the start event.
   final String source;
 
+  /// Optional injected [AppSessionState] for routing and testing.
+  final AppSessionState? sessionState;
+
   @override
   State<WelcomeScreen> createState() => _WelcomeScreenState();
 }
 
 class _WelcomeScreenState extends State<WelcomeScreen> {
+  AppSessionState? get _sessionState =>
+      widget.sessionState ??
+      (GetIt.instance.isRegistered<AppSessionState>()
+          ? GetIt.instance<AppSessionState>()
+          : null);
   @override
   void initState() {
     super.initState();
@@ -143,9 +156,22 @@ class _WelcomeScreenState extends State<WelcomeScreen> {
                               ),
                               child: TextButton(
                                 onPressed: () {
-                                  unawaited(
-                                    context.push(AppRoutes.accountSecure),
+                                  _sessionState?.setOnboardingCompleted(
+                                    completed: true,
                                   );
+                                  if (GetIt.instance
+                                      .isRegistered<
+                                        CompleteOnboardingUseCase
+                                      >()) {
+                                    unawaited(
+                                      GetIt.instance<
+                                        CompleteOnboardingUseCase
+                                      >()(
+                                        const NoParams(),
+                                      ),
+                                    );
+                                  }
+                                  context.go(AppRoutes.home);
                                 },
                                 child: Text(
                                   'I already have an account',

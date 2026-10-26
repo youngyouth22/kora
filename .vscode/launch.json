@@ -1,0 +1,66 @@
+{
+    // Use IntelliSense to learn about possible attributes.
+    // Hover to view descriptions of existing attributes.
+    // For more information, visit: https://go.microsoft.com/fwlink/?linkid=830387
+    "version": "0.2.0",
+    "configurations": [
+        
+        {
+            "name": "kora",
+            "request": "launch",
+            "type": "dart"
+        },
+        {
+            "name": "kora (profile mode)",
+            "request": "launch",
+            "type": "dart",
+            "flutterMode": "profile"
+        },
+        {
+            "name": "kora (release mode)",
+            "request": "launch",
+            "type": "dart",
+            "flutterMode": "release"
+        },
+        {
+            "name": ".widget_preview",
+            "cwd": ".widget_preview",
+            "request": "launch",
+            "type": "dart"
+        },
+        {
+            "name": ".widget_preview (profile mode)",
+            "cwd": ".widget_preview",
+            "request": "launch",
+            "type": "dart",
+            "flutterMode": "profile"
+        },
+        {
+            "name": ".widget_preview (release mode)",
+            "cwd": ".widget_preview",
+            "request": "launch",
+            "type": "dart",
+            "flutterMode": "release"
+        },
+        {
+            "name": "adaptive_responsive_nav",
+            "cwd": "packages/adaptive_responsive_nav",
+            "request": "launch",
+            "type": "dart"
+        },
+        {
+            "name": "adaptive_responsive_nav (profile mode)",
+            "cwd": "packages/adaptive_responsive_nav",
+            "request": "launch",
+            "type": "dart",
+            "flutterMode": "profile"
+        },
+        {
+            "name": "adaptive_responsive_nav (release mode)",
+            "cwd": "packages/adaptive_responsive_nav",
+            "request": "launch",
+            "type": "dart",
+            "flutterMode": "release"
+        }
+    ]
+}

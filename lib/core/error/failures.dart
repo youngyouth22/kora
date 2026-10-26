@@ -110,3 +110,14 @@ class UnexpectedFailure extends Failure {
     super.cause,
   });
 }
+
+/// Failure caused by in-app purchase, paywall,
+/// or RevenueCat entitlement errors.
+class SubscriptionFailure extends Failure {
+  /// Creates a [SubscriptionFailure].
+  const SubscriptionFailure({
+    required super.message,
+    super.statusCode,
+    super.cause,
+  });
+}

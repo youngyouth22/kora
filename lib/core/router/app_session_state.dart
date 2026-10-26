@@ -18,6 +18,7 @@ class AppSessionState extends ChangeNotifier {
     bool isPaywallEnforced = false,
     bool isAccountSecureRequired = false,
     bool hasSeenCaptureTips = false,
+    bool hasSeenProductScanTutorial = false,
     String? intendedDestination,
   }) : _isInitialized = isInitialized,
        _isAuthenticated = isAuthenticated,
@@ -26,6 +27,7 @@ class AppSessionState extends ChangeNotifier {
        _isPaywallEnforced = isPaywallEnforced,
        _isAccountSecureRequired = isAccountSecureRequired,
        _hasSeenCaptureTips = hasSeenCaptureTips,
+       _hasSeenProductScanTutorial = hasSeenProductScanTutorial,
        _intendedDestination = intendedDestination;
 
   bool _isInitialized;
@@ -35,6 +37,7 @@ class AppSessionState extends ChangeNotifier {
   bool _isPaywallEnforced;
   bool _isAccountSecureRequired;
   bool _hasSeenCaptureTips;
+  bool _hasSeenProductScanTutorial;
   String? _intendedDestination;
 
   /// Whether the core app dependencies, Supabase session, and Drift DB
@@ -147,6 +150,23 @@ class AppSessionState extends ChangeNotifier {
     notifyListeners();
   }
 
+  /// Whether the user has already seen the first-scan product tutorial.
+  bool get hasSeenProductScanTutorial => _hasSeenProductScanTutorial;
+
+  /// Updates whether the product scan tutorial has been viewed.
+  void setHasSeenProductScanTutorial({required bool seen}) {
+    if (_hasSeenProductScanTutorial == seen) return;
+    _hasSeenProductScanTutorial = seen;
+    notifyListeners();
+  }
+
+  /// Marks that product scan tutorial has been seen (idempotent).
+  void markProductScanTutorialSeen() {
+    if (_hasSeenProductScanTutorial) return;
+    _hasSeenProductScanTutorial = true;
+    notifyListeners();
+  }
+
   /// Resets the session state back to default uninitialized state.
   void reset() {
     _isInitialized = false;
@@ -156,6 +176,7 @@ class AppSessionState extends ChangeNotifier {
     _isPaywallEnforced = false;
     _isAccountSecureRequired = false;
     _hasSeenCaptureTips = false;
+    _hasSeenProductScanTutorial = false;
     _intendedDestination = null;
     notifyListeners();
   }

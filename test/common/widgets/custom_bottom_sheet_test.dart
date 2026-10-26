@@ -287,5 +287,26 @@ void main() {
       expect(find.text('Direct Column Content'), findsOneWidget);
       expect(find.byType(SingleChildScrollView), findsNothing);
     });
+
+    testWidgets('CustomBottomSheetContent supports explicit fixed height', (
+      tester,
+    ) async {
+      await tester.pumpWidget(
+        const MaterialApp(
+          home: Scaffold(
+            body: CustomBottomSheetContent(
+              height: 500,
+              isScrollable: false,
+              content: Text('Expanded Fixed Content'),
+            ),
+          ),
+        ),
+      );
+
+      expect(find.text('Expanded Fixed Content'), findsOneWidget);
+      final containerFinder = find.byType(Container).first;
+      final containerBox = tester.renderObject<RenderBox>(containerFinder);
+      expect(containerBox.size.height, equals(500));
+    });
   });
 }

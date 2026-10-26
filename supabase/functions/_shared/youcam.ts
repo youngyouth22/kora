@@ -2,15 +2,32 @@
 import { sleep } from './http.ts';
 
 const BASE = (Deno.env.get('YOUCAM_BASE_URL') ?? 'https://yce-api-01.makeupar.com').replace(/\/$/, '');
+const API_VERSION = Deno.env.get('YOUCAM_API_VERSION') ?? 'v2.1';
+const TASK_PATH = `/s2s/${API_VERSION}/task/skin-analysis`;
 
-/** SD concerns requested (override with YOUCAM_SD_ACTIONS="a,b,c"). Verify names in the docs before changing. */
-export const SD_ACTIONS: string[] = (Deno.env.get('YOUCAM_SD_ACTIONS') ??
-  'acne,redness,age_spot,texture,pore,wrinkle,moisture,oiliness,radiance,dark_circle_v2,firmness,eye_bag')
-  .split(',').map((s) => s.trim()).filter(Boolean);
+/** Official 16 SD actions supported by YouCam AI Skin Analysis. */
+export const DEFAULT_SD_ACTIONS: string[] = [
+  'wrinkle', 'pore', 'texture', 'acne', 'oiliness', 'radiance',
+  'eye_bag', 'age_spot', 'dark_circle_v2', 'droopy_upper_eyelid',
+  'droopy_lower_eyelid', 'firmness', 'moisture', 'redness',
+  'tear_trough', 'skin_type',
+];
 
-/** HD action names are deliberately NOT hard-coded: set YOUCAM_HD_ACTIONS from the docs to enable HD. */
-export const HD_ACTIONS: string[] = (Deno.env.get('YOUCAM_HD_ACTIONS') ?? '')
-  .split(',').map((s) => s.trim()).filter(Boolean);
+/** Official 16 HD actions supported by YouCam AI Skin Analysis. */
+export const DEFAULT_HD_ACTIONS: string[] = [
+  'hd_wrinkle', 'hd_pore', 'hd_texture', 'hd_acne', 'hd_oiliness', 'hd_radiance',
+  'hd_eye_bag', 'hd_age_spot', 'hd_dark_circle', 'hd_droopy_upper_eyelid',
+  'hd_droopy_lower_eyelid', 'hd_firmness', 'hd_moisture', 'hd_redness',
+  'hd_tear_trough', 'hd_skin_type',
+];
+
+/** SD concerns requested (override with YOUCAM_SD_ACTIONS="a,b,c"). */
+export const SD_ACTIONS: string[] = (Deno.env.get('YOUCAM_SD_ACTIONS') ?? DEFAULT_SD_ACTIONS.join(','))
+  .split(',').map((s: string) => s.trim()).filter(Boolean);
+
+/** HD action names (override with YOUCAM_HD_ACTIONS="a,b,c"). Defaults to all 16 HD actions. */
+export const HD_ACTIONS: string[] = (Deno.env.get('YOUCAM_HD_ACTIONS') ?? DEFAULT_HD_ACTIONS.join(','))
+  .split(',').map((s: string) => s.trim()).filter(Boolean);
 
 export class YoucamError extends Error {
   constructor(public status: number, public code: string, message: string) {
@@ -30,7 +47,12 @@ async function yc(path: string, init: RequestInit & { retries?: number } = {}): 
     try {
       const res = await fetch(BASE + path, {
         ...init,
-        headers: { Authorization: `Bearer ${key}`, 'Content-Type': 'application/json', ...(init.headers ?? {}) },
+        headers: {
+          Authorization: `Bearer ${key}`,
+          'Content-Type': 'application/json',
+          'X-Pxy-Src': 'kora',
+          ...(init.headers ?? {}),
+        },
         signal: AbortSignal.timeout(20_000),
       });
       const text = await res.text();
@@ -74,12 +96,24 @@ export async function createFile(p: { contentType: string; fileName: string; fil
 }
 
 /** Step 3: start the analysis. */
-export async function createSkinTask(p: { fileId: string; actions: string[] }): Promise<string> {
-  const body = await yc('/s2s/v2.0/task/skin-analysis', {
+export async function createSkinTask(p: {
+  fileId: string;
+  actions: string[];
+  enableMaskOverlay?: boolean;
+}): Promise<string> {
+  const body: Record<string, unknown> = {
+    src_file_id: p.fileId,
+    dst_actions: p.actions,
+    format: 'json',
+  };
+  if (p.enableMaskOverlay !== undefined) {
+    body.miniserver_args = { enable_mask_overlay: p.enableMaskOverlay };
+  }
+  const res = await yc(TASK_PATH, {
     method: 'POST',
-    body: JSON.stringify({ src_file_id: p.fileId, dst_actions: p.actions, format: 'json' }),
+    body: JSON.stringify(body),
   });
-  const id = body?.data?.task_id;
+  const id = res?.data?.task_id;
   if (!id) throw new YoucamError(502, 'bad_response', 'Task creation returned no task_id');
   return String(id);
 }
@@ -91,7 +125,7 @@ export type TaskState =
 
 /** Step 4: poll once. */
 export async function getSkinTask(taskId: string): Promise<TaskState> {
-  const body = await yc(`/s2s/v2.0/task/skin-analysis/${encodeURIComponent(taskId)}`, { method: 'GET' });
+  const body = await yc(`${TASK_PATH}/${encodeURIComponent(taskId)}`, { method: 'GET' });
   const d = body?.data ?? {};
   const st = String(d.task_status ?? '').toLowerCase();
   if (st === 'success' || st === 'succeeded' || st === 'completed') return { state: 'success', data: d };
@@ -118,16 +152,24 @@ export interface ParsedConcern {
   ui_score: number | null;
   mask_url: string | null;
 }
+
+export interface ParsedSkinType {
+  overall: string | null;
+  tZone: string | null;
+  uZone: string | null;
+  masks: string[];
+}
+
 export interface ParsedResult {
   overall: number | null;
   skinAge: number | null;
+  skinType: ParsedSkinType | null;
   concerns: ParsedConcern[];
 }
 
 const num = (v: unknown): number | null => (typeof v === 'number' && Number.isFinite(v) ? v : null);
 
-/** Tolerant parser: the exact shape of overall score / skin age must be confirmed on the first real call
- *  (the full provider response is stored in scans.result_json for that purpose). */
+/** Tolerant parser: extracts overall score, skin age, skin type and all concern scores/masks. */
 export function parseSkinResults(data: Json): ParsedResult {
   const out: Json[] = Array.isArray(data?.results?.output) ? data.results.output
     : Array.isArray(data?.results) ? data.results : [];
@@ -135,11 +177,29 @@ export function parseSkinResults(data: Json): ParsedResult {
   let overall: number | null = num(data?.results?.overall ?? data?.results?.score ?? data?.results?.all?.score);
   let skinAge: number | null = num(data?.results?.skin_age);
 
+  let overallSkinType: string | null = null;
+  let tZoneSkinType: string | null = null;
+  let uZoneSkinType: string | null = null;
+  const skinTypeMasks: string[] = [];
+
   for (const item of out) {
     const type = String(item?.type ?? '');
     if (!type) continue;
     if (type === 'all' || type === 'overall') { overall = overall ?? num(item.score) ?? num(item.raw_score); continue; }
     if (type === 'skin_age') { skinAge = skinAge ?? num(item.raw_score) ?? num(item.score); continue; }
+
+    if (type === 'skin_type' || type === 'hd_skin_type') {
+      const region = typeof item.region === 'string' ? item.region : 'whole';
+      const st = typeof item.skin_type === 'string' ? item.skin_type : 'Normal';
+      if (region === 'whole') overallSkinType = st;
+      else if (region === 't_zone') tZoneSkinType = st;
+      else if (region === 'u_zone') uZoneSkinType = st;
+      if (Array.isArray(item.mask_urls)) {
+        for (const m of item.mask_urls) if (typeof m === 'string') skinTypeMasks.push(m);
+      }
+      continue;
+    }
+
     const raw = num(item.raw_score) ?? num(item.score);
     if (raw === null) continue;
     const region = typeof item.region === 'string' && item.region && item.region !== 'whole' ? item.region : null;
@@ -156,7 +216,15 @@ export function parseSkinResults(data: Json): ParsedResult {
     const whole = concerns.filter((c) => c.zone === null);
     if (whole.length) overall = Math.round((whole.reduce((s, c) => s + c.raw_score, 0) / whole.length) * 100) / 100;
   }
-  return { overall, skinAge, concerns };
+
+  const skinType: ParsedSkinType | null = (overallSkinType || tZoneSkinType || uZoneSkinType) ? {
+    overall: overallSkinType,
+    tZone: tZoneSkinType,
+    uZone: uZoneSkinType,
+    masks: skinTypeMasks,
+  } : null;
+
+  return { overall, skinAge, skinType, concerns };
 }
 
 // ---------- error mapping (user-facing, English) ----------

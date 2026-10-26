@@ -87,11 +87,11 @@ class _CameraPermissionScreenState extends State<CameraPermissionScreen>
   }
 
   void _proceedToScan() {
-    _sessionState?.setOnboardingCompleted(completed: true);
     if (widget.onPermissionGranted != null) {
+      _sessionState?.setOnboardingCompleted(completed: true);
       widget.onPermissionGranted!();
     } else if (GoRouter.maybeOf(context) != null) {
-      context.go(AppRoutes.scanCapture);
+      context.go(AppRoutes.onboardingReminder);
     }
   }
 
@@ -131,11 +131,11 @@ class _CameraPermissionScreenState extends State<CameraPermissionScreen>
   }
 
   void _handleSkip() {
-    _sessionState?.setOnboardingCompleted(completed: true);
     if (widget.onSkip != null) {
+      _sessionState?.setOnboardingCompleted(completed: true);
       widget.onSkip!();
     } else if (GoRouter.maybeOf(context) != null) {
-      context.go(AppRoutes.home);
+      context.go(AppRoutes.onboardingReminder);
     }
   }
 
@@ -185,7 +185,7 @@ class _CameraPermissionScreenState extends State<CameraPermissionScreen>
                       ),
                     ),
                     Padding(
-                      padding: const EdgeInsets.symmetric(vertical: 16),
+                      padding: const EdgeInsets.only(top: 16, bottom: 8),
                       child: Semantics(
                         button: true,
                         label: 'Enable Camera',
@@ -196,6 +196,16 @@ class _CameraPermissionScreenState extends State<CameraPermissionScreen>
                         ),
                       ),
                     ),
+                    TextButton(
+                      onPressed: _handleSkip,
+                      child: Text(
+                        'Maybe Later',
+                        style: AppTypography.bodyMMedium.copyWith(
+                          color: AppGreyColors.shade700,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 8),
                   ],
                 ),
               ),
