@@ -1,5 +1,3 @@
-// ignore_for_file: document_ignores, lines_longer_than_80_chars
-
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:kora/common/app_colors.dart';
@@ -9,20 +7,44 @@ import 'package:kora/common/widgets/kora_delta_pill.dart';
 import 'package:kora/common/widgets/primary_button.dart';
 import 'package:kora/common/widgets/secondary_button.dart';
 import 'package:kora/core/router/app_routes.dart';
+import 'package:kora/features/progress/data/datasources/progress_sql_seed_datasource.dart';
+import 'package:kora/features/progress/domain/entities/progress_models.dart';
 
-/// Screen delivering the final scientific verdict on a tested product (C13 in blueprint).
+/// Screen delivering the final scientific verdict on a tested product
+/// (C13 in blueprint).
 class ExperimentVerdictPage extends StatelessWidget {
   /// Creates an [ExperimentVerdictPage].
   const ExperimentVerdictPage({
-    this.experimentId = '1',
+    this.experimentId = 'exp-retinol-demo',
     super.key,
   });
 
   /// The experiment identifier.
   final String experimentId;
 
+  ProgressExperiment _resolveExperiment() {
+    final experiments = ProgressSqlSeedDataSource.buildSeedExperiments();
+    return experiments.firstWhere(
+      (e) => e.id == experimentId,
+      orElse: () => experiments.first,
+    );
+  }
+
+  String _formatVerdictCode(String code) {
+    return code.replaceAll('_', ' ').toUpperCase();
+  }
+
   @override
   Widget build(BuildContext context) {
+    final exp = _resolveExperiment();
+    final primaryVerdict = exp.primaryVerdict;
+    final badgeText = primaryVerdict != null
+        ? _formatVerdictCode(primaryVerdict.verdict)
+        : 'VISIBLE EFFECT';
+    final confidenceLabel = (primaryVerdict?.confidence ?? 'high')
+        .toUpperCase();
+    final weeks = exp.plannedDays ~/ 7;
+
     return Scaffold(
       backgroundColor: AppColors.scaffoldColor,
       appBar: AppBar(
@@ -54,7 +76,7 @@ class ExperimentVerdictPage extends StatelessWidget {
                         borderRadius: BorderRadius.circular(100),
                       ),
                       child: Text(
-                        'VISIBLE EFFECT',
+                        badgeText,
                         style: AppTypography.bodySBold.copyWith(
                           color: AppColors.grey50,
                           letterSpacing: 0.5,
@@ -63,14 +85,15 @@ class ExperimentVerdictPage extends StatelessWidget {
                     ),
                     const SizedBox(height: 14),
                     Text(
-                      'Retinol 0.3% Emulsion',
+                      exp.title,
                       style: AppTypography.h5Bold.copyWith(
                         color: AppColors.grey1050,
                       ),
                     ),
                     const SizedBox(height: 4),
                     Text(
-                      '6-week trial completed · Sep 21 to Nov 2',
+                      '${exp.brand ?? 'Active Formula'} · '
+                      '$weeks-week protocol',
                       style: AppTypography.bodySRegular.copyWith(
                         color: AppColors.grey700,
                       ),
@@ -82,28 +105,18 @@ class ExperimentVerdictPage extends StatelessWidget {
 
               // Metrics Breakdown
               Text(
-                'Objective Outcomes',
+                'Objective Outcomes (Baseline vs Follow-up)',
                 style: AppTypography.h6Bold.copyWith(color: AppColors.grey1050),
               ),
               const SizedBox(height: 8),
               KoraCard(
                 child: Column(
                   children: [
-                    _buildOutcomeRow(
-                      concern: 'Dark spots',
-                      before: 58,
-                      after: 69,
-                      delta: 11,
-                      summary: 'Clear clinical lightening of post-acne marks',
-                    ),
-                    const Divider(height: 20, color: AppColors.grey200),
-                    _buildOutcomeRow(
-                      concern: 'Skin Texture',
-                      before: 62,
-                      after: 68,
-                      delta: 6,
-                      summary: 'Measurable reduction in surface micro-bumps',
-                    ),
+                    for (var i = 0; i < exp.verdictTargets.length; i++) ...[
+                      if (i > 0)
+                        const Divider(height: 20, color: AppColors.grey200),
+                      _buildOutcomeRow(exp.verdictTargets[i]),
+                    ],
                   ],
                 ),
               ),
@@ -123,7 +136,7 @@ class ExperimentVerdictPage extends StatelessWidget {
                         ),
                         const SizedBox(width: 8),
                         Text(
-                          'Confidence: Medium-High',
+                          'Confidence: $confidenceLabel',
                           style: AppTypography.bodyMSemiBold.copyWith(
                             color: AppColors.grey1050,
                           ),
@@ -132,7 +145,11 @@ class ExperimentVerdictPage extends StatelessWidget {
                     ),
                     const SizedBox(height: 6),
                     Text(
-                      'Based on 5 weekly scans, 82% daily adherence, and consistent indoor daylight capture conditions.',
+                      exp.notes.isNotEmpty
+                          ? exp.notes.join(' ')
+                          : 'Based on weekly HD scans, '
+                                '${(exp.adherence * 100).round()}% daily '
+                                'adherence, and consistent capture lighting.',
                       style: AppTypography.bodySRegular.copyWith(
                         color: AppColors.grey700,
                       ),
@@ -156,7 +173,10 @@ class ExperimentVerdictPage extends StatelessWidget {
                     ),
                     const SizedBox(height: 4),
                     Text(
-                      '• Concomitant use of daily broad spectrum SPF 50 protected new skin cells.\n• Autumn seasonal decrease in UV index supported pigmentation fading.',
+                      '• Concomitant use of daily broad spectrum SPF 50 '
+                      'protected new skin cells.\n'
+                      '• Noise threshold of ±3.0 pts filtered out lighting '
+                      'and hydration fluctuations.',
                       style: AppTypography.bodyXsRegular.copyWith(
                         color: AppColors.grey700,
                         height: 1.45,
@@ -166,6 +186,23 @@ class ExperimentVerdictPage extends StatelessWidget {
                 ),
               ),
               const SizedBox(height: 24),
+
+              // Compare Baseline vs Final Scan
+              if (exp.baselineScanIds.isNotEmpty &&
+                  exp.followupScanIds.isNotEmpty) ...[
+                SecondaryButton(
+                  text: 'Compare Baseline & Final Scans',
+                  height: 52,
+                  textColor: AppColors.primary700,
+                  onPressed: () => context.push(
+                    AppRoutes.buildComparePath(
+                      exp.baselineScanIds.first,
+                      exp.followupScanIds.last,
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 10),
+              ],
 
               // Action CTA: Keep in routine
               PrimaryButton(
@@ -217,20 +254,18 @@ class ExperimentVerdictPage extends StatelessWidget {
     );
   }
 
-  Widget _buildOutcomeRow({
-    required String concern,
-    required int before,
-    required int after,
-    required int delta,
-    required String summary,
-  }) {
+  Widget _buildOutcomeRow(ProgressVerdictTarget target) {
+    final before = target.baseline.round();
+    final after = target.post.round();
+    final delta = target.delta.round();
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Row(
           children: [
             Text(
-              concern,
+              target.concernLabel,
               style: AppTypography.bodyMSemiBold.copyWith(
                 color: AppColors.grey1050,
               ),
@@ -248,7 +283,8 @@ class ExperimentVerdictPage extends StatelessWidget {
         ),
         const SizedBox(height: 4),
         Text(
-          summary,
+          'Signal delta ${delta >= 0 ? '+$delta' : '$delta'} pts '
+          '(exceeds ±${target.noise.toStringAsFixed(0)} pt noise floor)',
           style: AppTypography.bodyXsRegular.copyWith(color: AppColors.grey700),
         ),
       ],

@@ -105,6 +105,11 @@ class OnboardingQuizSubmitted extends OnboardingEvent {
   const OnboardingQuizSubmitted();
 }
 
+/// Dispatched when completing the final onboarding milestone.
+class OnboardingCompleteRequested extends OnboardingEvent {
+  const OnboardingCompleteRequested();
+}
+
 /// Dispatched to link an anonymous guest profile to an authenticated
 /// account user.
 class OnboardingLinkAccountRequested extends OnboardingEvent {

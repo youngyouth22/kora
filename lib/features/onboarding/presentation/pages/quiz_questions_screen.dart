@@ -1,5 +1,7 @@
 // ignore_for_file: document_ignores, lines_longer_than_80_chars
 
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 
 import 'package:flutter_bloc/flutter_bloc.dart';
@@ -7,6 +9,7 @@ import 'package:flutter_svg/svg.dart';
 import 'package:get_it/get_it.dart';
 import 'package:go_router/go_router.dart';
 import 'package:kora/common/app_colors.dart';
+import 'package:kora/common/app_typography.dart';
 import 'package:kora/common/constants/mascot_pose.dart';
 import 'package:kora/common/image_resources.dart';
 import 'package:kora/common/widgets/primary_button.dart';
@@ -48,36 +51,35 @@ class _QuizQuestionsScreenState extends State<QuizQuestionsScreen> {
 
   static const int _totalSteps = 6;
 
-  static const List<({String name, String subtitle, Color color})>
-  _skinToneOptions = [
+  static const List<({String name, Color color})> _skinToneOptions = [
     (
       name: 'Very Fair',
-      subtitle: 'Always burns easily, never tans',
+      // subtitle: 'Always burns easily, never tans',
       color: AppSkinToneColors.typeI,
     ),
     (
       name: 'Fair',
-      subtitle: 'Burns easily, tans minimally',
+      // subtitle: 'Burns easily, tans minimally',
       color: AppSkinToneColors.typeII,
     ),
     (
       name: 'Medium',
-      subtitle: 'Burns moderately, tans gradually',
+      // subtitle: 'Burns moderately, tans gradually',
       color: AppSkinToneColors.typeIII,
     ),
     (
       name: 'Olive',
-      subtitle: 'Burns minimally, tans easily',
+      // subtitle: 'Burns minimally, tans easily',
       color: AppSkinToneColors.typeIV,
     ),
     (
       name: 'Brown',
-      subtitle: 'Rarely burns, tans profusely',
+      // subtitle: 'Rarely burns, tans profusely',
       color: AppSkinToneColors.typeV,
     ),
     (
       name: 'Dark Brown',
-      subtitle: 'Almost never burns, deeply pigmented',
+      // subtitle: 'Almost never burns, deeply pigmented',
       color: AppSkinToneColors.typeVI,
     ),
   ];
@@ -328,6 +330,7 @@ class _QuizQuestionsScreenState extends State<QuizQuestionsScreen> {
     return BlocConsumer<OnboardingBloc, OnboardingState>(
       listenWhen: (prev, current) =>
           prev.quizStep != current.quizStep ||
+          prev.isQuizSubmitted != current.isQuizSubmitted ||
           prev.isOnboardingCompleted != current.isOnboardingCompleted,
       listener: (context, state) {
         if (state.isOnboardingCompleted) {
@@ -339,7 +342,14 @@ class _QuizQuestionsScreenState extends State<QuizQuestionsScreen> {
           session?.setIntendedDestination(AppRoutes.scanCapture);
           session?.setOnboardingCompleted(completed: true);
           if (GoRouter.maybeOf(context) != null) {
-            context.go(AppRoutes.onboardingCamera);
+            context.go(AppRoutes.onboardingBuild);
+          }
+          return;
+        }
+
+        if (state.isQuizSubmitted) {
+          if (GoRouter.maybeOf(context) != null) {
+            unawaited(context.push(AppRoutes.onboardingBuild));
           }
           return;
         }
@@ -362,6 +372,7 @@ class _QuizQuestionsScreenState extends State<QuizQuestionsScreen> {
           backgroundColor: AppColors.scaffoldColor,
           appBar: AppBar(
             backgroundColor: Colors.transparent,
+            actionsPadding: const EdgeInsets.only(right: 24),
             elevation: 0,
             leadingWidth: 72,
             leading: Padding(
@@ -394,6 +405,14 @@ class _QuizQuestionsScreenState extends State<QuizQuestionsScreen> {
                 title: 'Personalizing Your Plan',
               ),
             ),
+            actions: [
+              Text(
+                '${currentStep + 1} of $_totalSteps',
+                style: AppTypography.bodySMedium.copyWith(
+                  color: AppColors.grey700,
+                ),
+              ),
+            ],
           ),
           body: PopScope(
             canPop: false,
@@ -456,7 +475,7 @@ class _QuizQuestionsScreenState extends State<QuizQuestionsScreen> {
                 padding: const EdgeInsets.only(bottom: 12),
                 child: OnboardingSelectionTile(
                   label: option.name,
-                  subtitle: option.subtitle,
+                  // subtitle: option.subtitle,
                   isSelected: _isOptionSelected(
                     questionIndex: 0,
                     option: option.name,
@@ -464,8 +483,8 @@ class _QuizQuestionsScreenState extends State<QuizQuestionsScreen> {
                     isMultiple: false,
                   ),
                   leading: Container(
-                    width: 28,
-                    height: 28,
+                    width: 34,
+                    height: 34,
                     decoration: BoxDecoration(
                       color: option.color,
                       shape: BoxShape.circle,

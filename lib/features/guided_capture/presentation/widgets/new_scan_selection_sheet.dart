@@ -75,7 +75,7 @@ class NewScanSelectionSheet extends StatelessWidget {
         if (onFaceScanSelected != null) {
           onFaceScanSelected();
         } else {
-          unawaited(context.push(AppRoutes.scanCapture));
+          unawaited(context.push(_faceScanRoute(sessionState)));
         }
       case NewScanChoice.product:
         if (onProductScanSelected != null) {
@@ -100,6 +100,16 @@ class NewScanSelectionSheet extends StatelessWidget {
 
     animation.addStatusListener(listener);
     return completer.future;
+  }
+
+  static String _faceScanRoute(AppSessionState? sessionState) {
+    final effectiveSession =
+        sessionState ??
+        (GetIt.instance.isRegistered<AppSessionState>()
+            ? GetIt.instance<AppSessionState>()
+            : null);
+    final hasSeenGuide = effectiveSession?.hasSeenScanGuide ?? false;
+    return hasSeenGuide ? AppRoutes.scanCapture : AppRoutes.scanGuide;
   }
 
   static String _productScanRoute(AppSessionState? sessionState) {

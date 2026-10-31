@@ -203,6 +203,24 @@ abstract final class AppRoutes {
   /// Route name for routine ingredients.
   static const String routineIngredientsName = 'routine_ingredients';
 
+  /// Routine product detail and schedule configuration: `/routine/product/:id`.
+  static const String routineProductDetail = '/routine/product/:id';
+
+  /// Route name for routine product detail.
+  static const String routineProductDetailName = 'routine_product_detail';
+
+  /// Curated dermatology catalog browser: `/routine/catalog`.
+  static const String routineCatalog = '/routine/catalog';
+
+  /// Route name for routine catalog.
+  static const String routineCatalogName = 'routine_catalog';
+
+  /// Daily skin feel check-in screen: `/routine/checkin`.
+  static const String routineCheckin = '/routine/checkin';
+
+  /// Route name for routine check-in.
+  static const String routineCheckinName = 'routine_checkin';
+
   // 4. Experiments
   /// Start a new product experiment.
   static const String experimentNew = '/experiment/new';
@@ -329,6 +347,10 @@ abstract final class AppRoutes {
   /// Builds a routine ingredient breakdown path: `/routine/ingredients/$id`.
   static String buildRoutineIngredientsPath(String id) =>
       '/routine/ingredients/$id';
+
+  /// Builds a routine product detail path: `/routine/product/$id`.
+  static String buildRoutineProductDetailPath(String id) =>
+      '/routine/product/$id';
 
   /// Builds an experiment detail path: `/experiment/$id`.
   static String buildExperimentPath(String id) => '/experiment/$id';

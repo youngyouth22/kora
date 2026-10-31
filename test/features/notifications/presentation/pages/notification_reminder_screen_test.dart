@@ -82,8 +82,8 @@ void main() {
       expect(find.byType(NotificationRuleInfoRow), findsNWidgets(3));
       expect(find.text('Confirm & Enable Reminders'), findsOneWidget);
       expect(find.text('Maybe Later'), findsOneWidget);
-      expect(find.text('Preferred Scan Day'), findsOneWidget);
-      expect(find.text('Preferred Reminder Time'), findsOneWidget);
+      expect(find.text('Day'), findsOneWidget);
+      expect(find.text('Time'), findsOneWidget);
       expect(find.byType(EmptyStateView), findsNothing);
     });
 

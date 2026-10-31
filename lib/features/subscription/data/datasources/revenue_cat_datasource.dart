@@ -25,7 +25,9 @@ abstract class RevenueCatDataSource {
 class RevenueCatDataSourceImpl implements RevenueCatDataSource {
   /// Creates a [RevenueCatDataSourceImpl] and registers update listener.
   RevenueCatDataSourceImpl() {
-    Purchases.addCustomerInfoUpdateListener(_customerInfoController.add);
+    try {
+      Purchases.addCustomerInfoUpdateListener(_customerInfoController.add);
+    } on Object catch (_) {}
   }
 
   final StreamController<CustomerInfo> _customerInfoController =

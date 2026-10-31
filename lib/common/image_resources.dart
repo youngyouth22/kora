@@ -24,4 +24,12 @@ abstract final class ImageResources {
   static const String xIcon = 'assets/icons/x-icon.png';
   static const String snapchatIcon = 'assets/icons/snapchat-icon.png';
   static const String koraLogo = 'assets/images/kora-logo.png';
+  static const String onboardingScanWeek1 =
+      'assets/images/onboarding_scan_week1.jpg';
+  static const String onboardingScanWeek3 =
+      'assets/images/onboarding_scan_week3.jpg';
+  static const String onboardingScanWeek6 =
+      'assets/images/onboarding_scan_week6.jpg';
+  static const String onboardingSerumBottle =
+      'assets/images/onboarding_serum_bottle.jpg';
 }

@@ -3,8 +3,10 @@
 import 'dart:async';
 
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:kora/features/skin_analysis/domain/entities/scan_record.dart';
 import 'package:kora/features/skin_analysis/domain/usecases/analyze_skin_usecase.dart';
 import 'package:kora/features/skin_analysis/domain/usecases/preprocess_skin_image_usecase.dart';
+import 'package:kora/features/skin_analysis/domain/usecases/save_scan_record_usecase.dart';
 import 'package:kora/features/skin_analysis/presentation/bloc/skin_analysis_event.dart';
 import 'package:kora/features/skin_analysis/presentation/bloc/skin_analysis_state.dart';
 
@@ -17,8 +19,10 @@ class SkinAnalysisBloc extends Bloc<SkinAnalysisEvent, SkinAnalysisState> {
   SkinAnalysisBloc({
     required PreprocessSkinImageUseCase preprocessUseCase,
     required AnalyzeSkinUseCase analyzeUseCase,
+    SaveScanRecordUseCase? saveScanUseCase,
   }) : _preprocessUseCase = preprocessUseCase,
        _analyzeUseCase = analyzeUseCase,
+       _saveScanUseCase = saveScanUseCase,
        super(const SkinAnalysisState()) {
     on<StartSkinAnalysisEvent>(_onStartSkinAnalysis);
     on<AnalysisProgressStepEvent>(_onProgressStep);
@@ -28,6 +32,7 @@ class SkinAnalysisBloc extends Bloc<SkinAnalysisEvent, SkinAnalysisState> {
 
   final PreprocessSkinImageUseCase _preprocessUseCase;
   final AnalyzeSkinUseCase _analyzeUseCase;
+  final SaveScanRecordUseCase? _saveScanUseCase;
   Timer? _longProcessingTimer;
 
   Future<void> _onStartSkinAnalysis(
@@ -107,20 +112,51 @@ class SkinAnalysisBloc extends Bloc<SkinAnalysisEvent, SkinAnalysisState> {
 
     _longProcessingTimer?.cancel();
 
-    analysisResult.fold(
-      (failure) => emit(
+    await analysisResult.fold(
+      (failure) async => emit(
         state.copyWith(
           status: SkinAnalysisStatus.failure,
           errorMessage: failure.message,
         ),
       ),
-      (result) => emit(
-        state.copyWith(
-          status: SkinAnalysisStatus.success,
-          currentStepIndex: 2,
-          result: result,
-        ),
-      ),
+      (result) async {
+        final saveUseCase = _saveScanUseCase;
+        if (saveUseCase != null) {
+          final scanId = 'scan_${DateTime.now().millisecondsSinceEpoch}';
+          final concernRecords = result.allConcerns.map((c) {
+            return ScanConcernRecord(
+              id: 'concern_${scanId}_${c.id}',
+              scanId: scanId,
+              userId: 'local-user',
+              concern: c.id,
+              rawScore: c.rawScore,
+              uiScore: c.uiScore.toDouble(),
+              maskPath: c.maskUrls.isNotEmpty ? c.maskUrls.first : null,
+            );
+          }).toList();
+
+          final record = ScanRecord(
+            id: scanId,
+            userId: 'local-user',
+            overallScore: result.overallScore,
+            skinAge: result.skinAge,
+            photoPath: processedImagePath ?? event.imagePath,
+            concerns: concernRecords,
+            createdAt: DateTime.now(),
+            completedAt: DateTime.now(),
+          );
+
+          await saveUseCase(record);
+        }
+
+        emit(
+          state.copyWith(
+            status: SkinAnalysisStatus.success,
+            currentStepIndex: 2,
+            result: result,
+          ),
+        );
+      },
     );
   }
 

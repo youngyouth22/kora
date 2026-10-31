@@ -258,7 +258,12 @@ class _NewExperimentPageState extends State<NewExperimentPage> {
                 height: 52,
                 backgroundColor: AppColors.primary700,
                 onPressed: () {
-                  context.pushReplacement(AppRoutes.buildExperimentPath('1'));
+                  final targetId = _selectedProduct.contains('Vitamin C')
+                      ? 'exp-vitc-active'
+                      : 'exp-retinol-demo';
+                  context.pushReplacement(
+                    AppRoutes.buildExperimentPath(targetId),
+                  );
                 },
               ),
               const SizedBox(height: 16),

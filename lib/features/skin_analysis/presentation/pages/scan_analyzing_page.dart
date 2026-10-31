@@ -25,7 +25,7 @@ class ScanAnalyzingPage extends StatelessWidget {
   /// Creates a [ScanAnalyzingPage].
   const ScanAnalyzingPage({
     required this.imagePath,
-    this.useMock = true,
+    this.useMock = false,
     super.key,
   });
 
@@ -67,8 +67,7 @@ class _ScanAnalyzingView extends StatelessWidget {
               context,
               result: state.result!,
               onSaveToRoutine: () {
-                // Navigate to account security / linking flow
-                context.go(AppRoutes.accountSecure);
+                context.go(AppRoutes.home);
               },
             ),
           );
@@ -142,16 +141,7 @@ class _ScanAnalyzingView extends StatelessWidget {
 
   Widget _buildDarkVignette() {
     return Container(
-      decoration: BoxDecoration(
-        gradient: LinearGradient(
-          begin: Alignment.topCenter,
-          end: Alignment.bottomCenter,
-          colors: [
-            AppGreyColors.shade1050.withValues(alpha: 0.5),
-            AppGreyColors.shade1050.withValues(alpha: 0.85),
-          ],
-        ),
-      ),
+      color: AppGreyColors.shade1050.withValues(alpha: 0.72),
     );
   }
 

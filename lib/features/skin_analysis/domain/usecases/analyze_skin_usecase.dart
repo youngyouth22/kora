@@ -10,7 +10,7 @@ class AnalyzeSkinParams extends Equatable {
   /// Creates [AnalyzeSkinParams].
   const AnalyzeSkinParams({
     required this.imagePath,
-    this.useMockIfOffline = true,
+    this.useMockIfOffline = false,
   });
 
   /// Path to the preprocessed photo.

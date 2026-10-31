@@ -37,6 +37,7 @@ dependencies:
   purchases_flutter: ^10.16.0
   purchases_ui_flutter: ^10.16.0
   screen_brightness: ^2.1.11
+  shared_preferences: ^2.5.4
   sqlite3_flutter_libs: ^0.5.24
   supabase: ^2.16.4
 

@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:kora/common/app_colors.dart';
-import 'package:kora/common/app_typography.dart';
 
 /// Accessible progress bar for multi-step onboarding sequences.
 ///
@@ -39,32 +38,32 @@ class OnboardingProgressBar extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         mainAxisSize: MainAxisSize.min,
         children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              if (title != null)
-                Expanded(
-                  child: Text(
-                    title!,
-                    style: AppTypography.bodyMBold.copyWith(
-                      color: AppColors.baseColor,
-                    ),
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                ),
-              Text(
-                '$currentStep of $totalSteps',
-                style: AppTypography.bodySMedium.copyWith(
-                  color: AppColors.grey700,
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 8),
+          // Row(
+          //   mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          //   children: [
+          //     if (title != null)
+          //       Expanded(
+          //         child: Text(
+          //           title!,
+          //           style: AppTypography.bodyMBold.copyWith(
+          //             color: AppColors.baseColor,
+          //           ),
+          //           overflow: TextOverflow.ellipsis,
+          //         ),
+          //       ),
+          //     Text(
+          //       '$currentStep of $totalSteps',
+          //       style: AppTypography.bodySMedium.copyWith(
+          //         color: AppColors.grey700,
+          //       ),
+          //     ),
+          //   ],
+          // ),
+          // const SizedBox(height: 8),
           ClipRRect(
-            borderRadius: BorderRadius.circular(4),
+            borderRadius: BorderRadius.circular(8),
             child: Container(
-              height: 6,
+              height: 10,
               width: double.infinity,
               color: AppColors.grey300,
               child: FractionallySizedBox(

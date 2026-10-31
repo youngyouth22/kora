@@ -1,6 +1,10 @@
 // ignore_for_file: document_ignores
 
 import 'package:get_it/get_it.dart';
+import 'package:kora/core/database/daos/profile_dao.dart';
+import 'package:kora/core/database/daos/sync_mutation_dao.dart';
+import 'package:kora/core/services/app_preferences_service.dart';
+import 'package:kora/core/sync/sync_engine.dart';
 import 'package:kora/features/onboarding/data/datasources/onboarding_local_datasource.dart';
 import 'package:kora/features/onboarding/data/datasources/onboarding_remote_datasource.dart';
 import 'package:kora/features/onboarding/data/repositories/onboarding_repository_impl.dart';
@@ -19,13 +23,23 @@ void initOnboardingInjection(GetIt sl) {
   // Datasources
   if (!sl.isRegistered<OnboardingLocalDataSource>()) {
     sl.registerLazySingleton<OnboardingLocalDataSource>(
-      OnboardingLocalDataSourceImpl.new,
+      () => OnboardingLocalDataSourceImpl(
+        profileDao: sl.isRegistered<ProfileDao>() ? sl<ProfileDao>() : null,
+        preferencesService: sl.isRegistered<AppPreferencesService>()
+            ? sl<AppPreferencesService>()
+            : null,
+      ),
     );
   }
 
   if (!sl.isRegistered<OnboardingRemoteDataSource>()) {
     sl.registerLazySingleton<OnboardingRemoteDataSource>(
-      OnboardingRemoteDataSourceImpl.new,
+      () => OnboardingRemoteDataSourceImpl(
+        mutationDao: sl.isRegistered<SyncMutationDao>()
+            ? sl<SyncMutationDao>()
+            : null,
+        syncEngine: sl.isRegistered<SyncEngine>() ? sl<SyncEngine>() : null,
+      ),
     );
   }
 

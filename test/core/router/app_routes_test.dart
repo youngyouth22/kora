@@ -44,6 +44,9 @@ void main() {
       expect(AppRoutes.routineAdd, '/routine/add');
       expect(AppRoutes.routineLabel, '/routine/label');
       expect(AppRoutes.routineIngredients, '/routine/ingredients/:id');
+      expect(AppRoutes.routineProductDetail, '/routine/product/:id');
+      expect(AppRoutes.routineCatalog, '/routine/catalog');
+      expect(AppRoutes.routineCheckin, '/routine/checkin');
       expect(AppRoutes.experimentNew, '/experiment/new');
       expect(AppRoutes.experimentDetail, '/experiment/:id');
       expect(AppRoutes.experimentVerdict, '/experiment/:id/verdict');
@@ -73,6 +76,10 @@ void main() {
       expect(
         AppRoutes.buildRoutineIngredientsPath('serum-12'),
         '/routine/ingredients/serum-12',
+      );
+      expect(
+        AppRoutes.buildRoutineProductDetailPath('item-1'),
+        '/routine/product/item-1',
       );
       expect(AppRoutes.buildExperimentPath('exp-1'), '/experiment/exp-1');
       expect(

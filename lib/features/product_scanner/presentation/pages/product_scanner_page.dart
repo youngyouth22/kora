@@ -5,16 +5,19 @@ import 'package:camera/camera.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:get_it/get_it.dart';
 import 'package:go_router/go_router.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:kora/common/app_colors.dart';
 import 'package:kora/common/app_typography.dart';
+import 'package:kora/core/network/kora_ai_api_client.dart';
 import 'package:kora/core/router/app_routes.dart';
 import 'package:kora/features/product_scanner/data/datasources/mlkit_barcode_datasource.dart';
 import 'package:kora/features/product_scanner/data/datasources/mlkit_text_ocr_datasource.dart';
 import 'package:kora/features/product_scanner/data/datasources/product_remote_datasource.dart';
 import 'package:kora/features/product_scanner/data/repositories/product_scanner_repository_impl.dart';
 import 'package:kora/features/product_scanner/domain/entities/scanned_product_result.dart';
+import 'package:kora/features/product_scanner/domain/repositories/product_scanner_repository.dart';
 import 'package:kora/features/product_scanner/domain/usecases/evaluate_product_frame_usecase.dart';
 import 'package:kora/features/product_scanner/domain/usecases/process_and_search_product_usecase.dart';
 import 'package:kora/features/product_scanner/domain/usecases/process_barcode_usecase.dart';
@@ -43,11 +46,24 @@ class ProductScannerPage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final repository = ProductScannerRepositoryImpl(
-      ocrDataSource: MlkitTextOcrDataSource(),
-      barcodeDataSource: MlkitBarcodeDataSource(),
-      remoteDataSource: const ProductRemoteDataSourceImpl(),
-    );
+    final getIt = GetIt.instance;
+    final repository = getIt.isRegistered<ProductScannerRepository>()
+        ? getIt<ProductScannerRepository>()
+        : ProductScannerRepositoryImpl(
+            ocrDataSource: getIt.isRegistered<MlkitTextOcrDataSource>()
+                ? getIt<MlkitTextOcrDataSource>()
+                : MlkitTextOcrDataSource(),
+            barcodeDataSource: getIt.isRegistered<MlkitBarcodeDataSource>()
+                ? getIt<MlkitBarcodeDataSource>()
+                : MlkitBarcodeDataSource(),
+            remoteDataSource: getIt.isRegistered<ProductRemoteDataSource>()
+                ? getIt<ProductRemoteDataSource>()
+                : ProductRemoteDataSourceImpl(
+                    aiApiClient: getIt.isRegistered<KoraAiApiClient>()
+                        ? getIt<KoraAiApiClient>()
+                        : null,
+                  ),
+          );
 
     return BlocProvider(
       create: (_) => ProductScannerBloc(
@@ -260,8 +276,12 @@ class _ProductScannerViewState extends State<_ProductScannerView>
             if (widget.onProductFound != null) {
               widget.onProductFound!(state.result!);
             } else if (context.mounted) {
+              final productId =
+                  state.result!.backendProductData['product_id']?.toString() ??
+                  'demo-1';
               context.pushReplacement(
-                AppRoutes.buildRoutineIngredientsPath('demo-1'),
+                AppRoutes.buildRoutineIngredientsPath(productId),
+                extra: state.result,
               );
             }
           }

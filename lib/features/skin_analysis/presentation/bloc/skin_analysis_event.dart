@@ -14,7 +14,7 @@ class StartSkinAnalysisEvent extends SkinAnalysisEvent {
   /// Creates a [StartSkinAnalysisEvent].
   const StartSkinAnalysisEvent({
     required this.imagePath,
-    this.useMock = true,
+    this.useMock = false,
   });
 
   /// Path to the captured photo.

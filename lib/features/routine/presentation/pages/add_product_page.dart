@@ -1,15 +1,24 @@
-import 'dart:async';
-
 import 'package:flutter/material.dart';
+import 'package:get_it/get_it.dart';
 import 'package:go_router/go_router.dart';
 import 'package:kora/common/app_colors.dart';
 import 'package:kora/common/app_typography.dart';
 import 'package:kora/common/widgets/app_text_field.dart';
-import 'package:kora/common/widgets/kora_card.dart';
 import 'package:kora/common/widgets/primary_button.dart';
+import 'package:kora/core/network/kora_ai_api_client.dart';
 import 'package:kora/core/router/app_routes.dart';
+import 'package:kora/features/product_scanner/data/datasources/product_remote_datasource.dart';
+import 'package:kora/features/product_scanner/data/models/skincare_report_model.dart';
+import 'package:kora/features/product_scanner/domain/entities/skincare_report.dart';
+import 'package:kora/features/routine/domain/entities/routine_product.dart';
+import 'package:kora/features/routine/presentation/bloc/routine_bloc.dart';
+import 'package:kora/features/routine/presentation/bloc/routine_event.dart';
+import 'package:kora/features/routine/presentation/widgets/add_product_form_sections.dart';
+import 'package:kora/features/routine/routine_injection.dart';
 
-/// Screen to add a new skincare product to the routine (C08 in blueprint).
+/// Screen to add a new skincare product to the routine (C08 in blueprint),
+/// persisting directly to `public.routine_items` via [RoutineBloc] and
+/// integrated with the Kora Product Scanner AI Agents.
 class AddProductPage extends StatefulWidget {
   /// Creates an [AddProductPage].
   const AddProductPage({super.key});
@@ -23,26 +32,24 @@ class _AddProductPageState extends State<AddProductPage> {
   final TextEditingController _brandController = TextEditingController();
   final TextEditingController _searchController = TextEditingController();
 
-  String _selectedStep = 'Serum';
-  String _selectedPeriod = 'Both';
+  String _selectedStep = RoutineStepType.serum;
+  String _selectedPeriod = RoutinePeriod.both;
   final Set<String> _selectedActives = {'Niacinamide'};
 
-  final List<String> _steps = [
-    'Cleanser',
-    'Serum',
-    'Moisturizer',
-    'SPF',
-    'Treatment',
-  ];
-  final List<String> _commonActives = [
+  bool _isAnalyzingAi = false;
+  SkincareReport? _aiReport;
+
+  static const List<String> _commonActives = [
     'Niacinamide',
     'Hyaluronic Acid',
     'Retinol',
     'Salicylic Acid',
-    'Vitamin C',
+    'L-Ascorbic Acid',
     'Ceramides',
     'Azelaic Acid',
-    'Peptides',
+    'Panthenol',
+    'Squalane',
+    'Zinc Oxide',
   ];
 
   @override
@@ -51,6 +58,72 @@ class _AddProductPageState extends State<AddProductPage> {
     _brandController.dispose();
     _searchController.dispose();
     super.dispose();
+  }
+
+  Future<void> _analyzeProductWithAi([String? rawQuery]) async {
+    final query = (rawQuery ?? _searchController.text).trim();
+    if (query.isEmpty) return;
+
+    setState(() => _isAnalyzingAi = true);
+
+    try {
+      final getIt = GetIt.instance;
+      ProductRemoteDataSource dataSource;
+      if (getIt.isRegistered<ProductRemoteDataSource>()) {
+        dataSource = getIt<ProductRemoteDataSource>();
+      } else {
+        dataSource = ProductRemoteDataSourceImpl(
+          aiApiClient: getIt.isRegistered<KoraAiApiClient>()
+              ? getIt<KoraAiApiClient>()
+              : null,
+        );
+      }
+
+      final rawJson = await dataSource.searchProductByOcrText(
+        rawText: query,
+        lines: <String>[query],
+        imagePath: '',
+      );
+      final report = SkincareReportModel.fromJson(rawJson).toEntity();
+
+      if (!mounted) return;
+      setState(() {
+        _aiReport = report;
+        if (report.product.name.isNotEmpty) {
+          _nameController.text = report.product.name;
+        }
+        if (report.product.brand.isNotEmpty) {
+          _brandController.text = report.product.brand;
+        }
+        final cat = report.product.category.toLowerCase();
+        if (cat.contains('clean')) {
+          _selectedStep = RoutineStepType.cleanser;
+        } else if (cat.contains('toner')) {
+          _selectedStep = RoutineStepType.toner;
+        } else if (cat.contains('moist') || cat.contains('cream')) {
+          _selectedStep = RoutineStepType.moisturizer;
+        } else if (cat.contains('spf') || cat.contains('sun')) {
+          _selectedStep = RoutineStepType.spf;
+        } else if (cat.contains('treat') || cat.contains('retinol')) {
+          _selectedStep = RoutineStepType.treatment;
+        } else {
+          _selectedStep = RoutineStepType.serum;
+        }
+        if (report.formulaStatic.isNotEmpty) {
+          _selectedActives
+            ..clear()
+            ..addAll(
+              report.formulaStatic
+                  .take(4)
+                  .map((ingredient) => ingredient.inciName),
+            );
+        }
+      });
+    } finally {
+      if (mounted) {
+        setState(() => _isAnalyzingAi = false);
+      }
+    }
   }
 
   Future<void> _onSave() async {
@@ -68,76 +141,48 @@ class _AddProductPageState extends State<AddProductPage> {
       return;
     }
 
-    // Nielsen heuristics: Low friction + prompt for experiment test (C08 / C11)
+    final getIt = GetIt.instance;
+    if (!getIt.isRegistered<RoutineBloc>()) {
+      initRoutineInjection(getIt);
+    }
+    final bloc = getIt<RoutineBloc>();
+    final now = DateTime.now();
+
+    final newProduct = RoutineProduct(
+      id: 'item-${now.millisecondsSinceEpoch}',
+      userId: bloc.state.userId,
+      name: name,
+      brand: _brandController.text.trim().isEmpty
+          ? null
+          : _brandController.text.trim(),
+      stepType: _selectedStep,
+      actives: _selectedActives.toList(),
+      period: _selectedPeriod,
+      startedOn: now,
+      sortOrder: RoutineStepType.defaultOrder(_selectedStep),
+      ingredientsRaw: _aiReport?.formulaStatic
+          .map((i) => i.inciName)
+          .join(', '),
+      createdAt: now,
+      updatedAt: now,
+    );
+
+    bloc.add(RoutineProductSaved(newProduct));
+
     await showModalBottomSheet<void>(
       context: context,
       backgroundColor: Colors.transparent,
       builder: (bottomSheetContext) {
-        return Container(
-          decoration: const BoxDecoration(
-            color: AppColors.grey50,
-            borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
-          ),
-          padding: const EdgeInsets.fromLTRB(20, 16, 20, 24),
-          child: SafeArea(
-            top: false,
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                Center(
-                  child: Container(
-                    width: 36,
-                    height: 4,
-                    decoration: BoxDecoration(
-                      color: AppColors.grey300,
-                      borderRadius: BorderRadius.circular(2),
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 16),
-                Text(
-                  'Product added to routine!',
-                  style: AppTypography.h5Bold.copyWith(
-                    color: AppColors.grey1050,
-                  ),
-                  textAlign: TextAlign.center,
-                ),
-                const SizedBox(height: 8),
-                Text(
-                  'Do you want to test whether $name really works by '
-                  'starting a 6-week experiment?',
-                  style: AppTypography.bodySRegular.copyWith(
-                    color: AppColors.grey700,
-                  ),
-                  textAlign: TextAlign.center,
-                ),
-                const SizedBox(height: 20),
-                PrimaryButton(
-                  text: 'Start an experiment',
-                  height: 52,
-                  backgroundColor: AppColors.primary700,
-                  onPressed: () {
-                    Navigator.of(bottomSheetContext).pop();
-                    unawaited(context.push(AppRoutes.experimentNew));
-                  },
-                ),
-                const SizedBox(height: 8),
-                TextButton(
-                  onPressed: () {
-                    Navigator.of(bottomSheetContext).pop();
-                    context.pop();
-                  },
-                  child: Text(
-                    'Just save to routine',
-                    style: AppTypography.bodySMedium.copyWith(
-                      color: AppColors.grey700,
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ),
+        return ProductSavedConfirmSheet(
+          productName: name,
+          onStartExperiment: () {
+            Navigator.of(bottomSheetContext).pop();
+            context.pushReplacement(AppRoutes.experimentNew);
+          },
+          onKeepInRoutine: () {
+            Navigator.of(bottomSheetContext).pop();
+            context.pop();
+          },
         );
       },
     );
@@ -148,10 +193,24 @@ class _AddProductPageState extends State<AddProductPage> {
     return Scaffold(
       backgroundColor: AppColors.scaffoldColor,
       appBar: AppBar(
+        backgroundColor: AppColors.scaffoldColor,
+        elevation: 0,
+        scrolledUnderElevation: 0,
         title: Text(
           'Add Product',
           style: AppTypography.h5Bold.copyWith(color: AppColors.grey1050),
         ),
+        actions: [
+          TextButton(
+            onPressed: () => context.push(AppRoutes.routineCatalog),
+            child: Text(
+              'Catalog',
+              style: AppTypography.bodySMedium.copyWith(
+                color: AppColors.primary700,
+              ),
+            ),
+          ),
+        ],
       ),
       body: SafeArea(
         child: SingleChildScrollView(
@@ -159,64 +218,70 @@ class _AddProductPageState extends State<AddProductPage> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              // Search in catalog
-              AppTextField(
-                controller: _searchController,
-                hintText: 'Search products in database...',
-                prefixIcon: const Icon(Icons.search, color: AppColors.grey600),
+              Row(
+                children: [
+                  Expanded(
+                    child: AppTextField(
+                      controller: _searchController,
+                      hintText: 'Search product, barcode, or paste INCI...',
+                      prefixIcon: const Icon(
+                        Icons.search,
+                        color: AppColors.grey600,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Semantics(
+                    button: true,
+                    label: 'Analyze product with Kora AI',
+                    child: InkWell(
+                      onTap: _isAnalyzingAi ? null : _analyzeProductWithAi,
+                      borderRadius: BorderRadius.circular(12),
+                      child: Container(
+                        height: 48,
+                        padding: const EdgeInsets.symmetric(horizontal: 14),
+                        decoration: BoxDecoration(
+                          color: AppColors.primary700,
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        alignment: Alignment.center,
+                        child: _isAnalyzingAi
+                            ? const SizedBox(
+                                width: 18,
+                                height: 18,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                  color: AppColors.grey50,
+                                ),
+                              )
+                            : Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  const Icon(
+                                    Icons.auto_awesome_rounded,
+                                    size: 16,
+                                    color: AppColors.grey50,
+                                  ),
+                                  const SizedBox(width: 6),
+                                  Text(
+                                    'AI Match',
+                                    style: AppTypography.bodyXsSemiBold
+                                        .copyWith(color: AppColors.grey50),
+                                  ),
+                                ],
+                              ),
+                      ),
+                    ),
+                  ),
+                ],
               ),
               const SizedBox(height: 12),
-
-              // OCR Label Scan shortcut
-              KoraCard(
-                onTap: () => context.push(AppRoutes.routineLabel),
-                backgroundColor: AppColors.primary50,
-                borderColor: AppColors.primary200,
-                child: Row(
-                  children: [
-                    Container(
-                      width: 40,
-                      height: 40,
-                      decoration: BoxDecoration(
-                        color: AppColors.primary100,
-                        borderRadius: BorderRadius.circular(10),
-                      ),
-                      child: const Icon(
-                        Icons.document_scanner_outlined,
-                        color: AppColors.primary800,
-                        size: 22,
-                      ),
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            'Scan ingredient label (OCR)',
-                            style: AppTypography.bodyMSemiBold.copyWith(
-                              color: AppColors.grey1050,
-                            ),
-                          ),
-                          Text(
-                            'Instant breakdown of actives and allergens',
-                            style: AppTypography.bodyXsRegular.copyWith(
-                              color: AppColors.grey700,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                    const Icon(
-                      Icons.chevron_right_rounded,
-                      color: AppColors.primary700,
-                    ),
-                  ],
-                ),
-              ),
+              if (_aiReport != null) ...[
+                AddProductAiVerdictCard(report: _aiReport!),
+                const SizedBox(height: 12),
+              ],
+              const AddProductOcrShortcutCard(),
               const SizedBox(height: 20),
-
-              // Step Selector
               Text(
                 'Step Category',
                 style: AppTypography.bodyMSemiBold.copyWith(
@@ -227,14 +292,14 @@ class _AddProductPageState extends State<AddProductPage> {
               Wrap(
                 spacing: 8,
                 runSpacing: 8,
-                children: _steps.map((step) {
+                children: RoutineStepType.values.map((step) {
                   final isSelected = _selectedStep == step;
                   return ChoiceChip(
-                    label: Text(step),
+                    label: Text(RoutineStepType.displayLabel(step)),
                     selected: isSelected,
                     selectedColor: AppColors.primary700,
                     backgroundColor: AppColors.grey100,
-                    labelStyle: AppTypography.bodySMedium.copyWith(
+                    labelStyle: AppTypography.bodyXsSemiBold.copyWith(
                       color: isSelected ? AppColors.grey50 : AppColors.grey800,
                     ),
                     side: BorderSide(
@@ -247,8 +312,6 @@ class _AddProductPageState extends State<AddProductPage> {
                 }).toList(),
               ),
               const SizedBox(height: 16),
-
-              // Form fields
               Text(
                 'Product Name',
                 style: AppTypography.bodyMSemiBold.copyWith(
@@ -261,7 +324,6 @@ class _AddProductPageState extends State<AddProductPage> {
                 hintText: 'e.g. Niacinamide 10% + Zinc 1%',
               ),
               const SizedBox(height: 14),
-
               Text(
                 'Brand',
                 style: AppTypography.bodyMSemiBold.copyWith(
@@ -274,8 +336,6 @@ class _AddProductPageState extends State<AddProductPage> {
                 hintText: 'e.g. The Ordinary',
               ),
               const SizedBox(height: 16),
-
-              // Key Actives selector
               Text(
                 'Key Actives (Optional)',
                 style: AppTypography.bodyMSemiBold.copyWith(
@@ -286,10 +346,10 @@ class _AddProductPageState extends State<AddProductPage> {
               Wrap(
                 spacing: 6,
                 runSpacing: 6,
-                children: _commonActives.map((active) {
-                  final isSelected = _selectedActives.contains(active);
+                children: {..._commonActives, ..._selectedActives}.map((a) {
+                  final isSelected = _selectedActives.contains(a);
                   return FilterChip(
-                    label: Text(active),
+                    label: Text(a),
                     selected: isSelected,
                     selectedColor: AppColors.primary100,
                     backgroundColor: AppColors.grey100,
@@ -306,9 +366,9 @@ class _AddProductPageState extends State<AddProductPage> {
                     onSelected: (val) {
                       setState(() {
                         if (val) {
-                          _selectedActives.add(active);
+                          _selectedActives.add(a);
                         } else {
-                          _selectedActives.remove(active);
+                          _selectedActives.remove(a);
                         }
                       });
                     },
@@ -316,8 +376,6 @@ class _AddProductPageState extends State<AddProductPage> {
                 }).toList(),
               ),
               const SizedBox(height: 16),
-
-              // Routine period
               Text(
                 'When do you use it?',
                 style: AppTypography.bodyMSemiBold.copyWith(
@@ -325,45 +383,12 @@ class _AddProductPageState extends State<AddProductPage> {
                 ),
               ),
               const SizedBox(height: 8),
-              Row(
-                children: ['Morning', 'Evening', 'Both'].map((period) {
-                  final isSelected = _selectedPeriod == period;
-                  return Expanded(
-                    child: Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 4),
-                      child: OutlinedButton(
-                        style: OutlinedButton.styleFrom(
-                          backgroundColor: isSelected
-                              ? AppColors.primary700
-                              : AppColors.grey50,
-                          side: BorderSide(
-                            color: isSelected
-                                ? AppColors.primary700
-                                : AppColors.grey300,
-                          ),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(10),
-                          ),
-                          padding: const EdgeInsets.symmetric(vertical: 12),
-                        ),
-                        onPressed: () =>
-                            setState(() => _selectedPeriod = period),
-                        child: Text(
-                          period,
-                          style: AppTypography.bodySMedium.copyWith(
-                            color: isSelected
-                                ? AppColors.grey50
-                                : AppColors.grey800,
-                          ),
-                        ),
-                      ),
-                    ),
-                  );
-                }).toList(),
+              AddProductPeriodSelector(
+                selectedPeriod: _selectedPeriod,
+                onPeriodSelected: (period) =>
+                    setState(() => _selectedPeriod = period),
               ),
               const SizedBox(height: 28),
-
-              // Save CTA
               PrimaryButton(
                 text: 'Save product',
                 height: 52,

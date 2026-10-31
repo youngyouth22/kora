@@ -20,6 +20,6 @@ abstract class SkinAnalysisRepository {
   /// - Supports [useMockIfOffline] to save YouCam API credits while developing
   Future<Either<Failure, SkinAnalysisResult>> analyzeSkin({
     required String imagePath,
-    bool useMockIfOffline = true,
+    bool useMockIfOffline = false,
   });
 }

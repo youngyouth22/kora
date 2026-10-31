@@ -3,7 +3,14 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
 import 'package:kora/common/constants/mascot_pose.dart';
 import 'package:kora/common/widgets/mascot_illustration.dart';
+import 'package:kora/features/coach/data/datasources/coach_remote_datasource.dart';
+import 'package:kora/features/coach/data/repositories/coach_repository_impl.dart';
+import 'package:kora/features/coach/domain/entities/coach_chat_entities.dart';
+import 'package:kora/features/coach/domain/usecases/send_coach_message_usecase.dart';
+import 'package:kora/features/coach/presentation/bloc/coach_chat_bloc.dart';
+import 'package:kora/features/coach/presentation/bloc/coach_chat_state.dart';
 import 'package:kora/features/coach/presentation/pages/coach_page.dart';
+import 'package:kora/features/coach/presentation/widgets/coach_bottom_sheet.dart';
 
 void main() {
   group('CoachPage Widget Tests', () {
@@ -76,15 +83,58 @@ void main() {
         findsOneWidget,
       );
 
-      // History items
+      // History section empty state when no prior chats
+      expect(find.text('No chat history yet'), findsOneWidget);
       expect(
-        find.text('🌿 Post-acne care routine suggestion'),
+        find.text('Ask Amie a question to get personalized skincare advice.'),
         findsOneWidget,
       );
-      expect(find.text('☀️ Morning routine update'), findsOneWidget);
 
       // New Chat FAB
       expect(find.text('New Chat'), findsOneWidget);
+    });
+
+    testWidgets('renders real conversation history when threads exist', (
+      tester,
+    ) async {
+      final now = DateTime.now();
+      final fakeThread = CoachThread(
+        id: 'thread-1',
+        title: 'How to soothe redness',
+        updatedAt: now,
+        messages: [
+          CoachChatMessage(
+            id: 'm-1',
+            text: 'How to soothe redness',
+            isUser: true,
+            createdAt: now,
+          ),
+          CoachChatMessage(
+            id: 'm-2',
+            text: 'Use azelaic acid and centella.',
+            isUser: false,
+            createdAt: now,
+          ),
+        ],
+      );
+
+      final bloc = CoachChatBloc(
+        sendCoachMessageUseCase: const SendCoachMessageUseCase(
+          CoachRepositoryImpl(remoteDataSource: CoachRemoteDataSourceImpl()),
+        ),
+      )..emit(CoachChatState(threads: [fakeThread]));
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: CoachBottomSheetContent(bloc: bloc),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.text('How to soothe redness'), findsOneWidget);
+      expect(find.text('Today'), findsOneWidget);
     });
 
     testWidgets(

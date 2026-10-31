@@ -2,8 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:kora/common/app_colors.dart';
 import 'package:kora/common/app_typography.dart';
 
-/// Informative bullet row presenting one of Kora's enterprise
-/// notification principles.
+/// Ligne d'information (icône teintée + titre + sous-titre), conçue pour être
+/// empilée dans une carte groupée avec des séparateurs.
 class NotificationRuleInfoRow extends StatelessWidget {
   /// Creates a [NotificationRuleInfoRow].
   const NotificationRuleInfoRow({
@@ -16,31 +16,26 @@ class NotificationRuleInfoRow extends StatelessWidget {
   /// Leading icon.
   final IconData icon;
 
-  /// Header text.
+  /// Rule title.
   final String title;
 
-  /// Subtitle description text.
+  /// Rule explanation.
   final String subtitle;
 
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: const EdgeInsets.only(bottom: 14),
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
       child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Container(
-            width: 36,
-            height: 36,
+            width: 42,
+            height: 42,
             decoration: BoxDecoration(
-              color: AppColors.primary50,
-              borderRadius: BorderRadius.circular(10),
+              shape: BoxShape.circle,
+              color: AppColors.primary700.withValues(alpha: 0.09),
             ),
-            child: Icon(
-              icon,
-              size: 20,
-              color: AppColors.primary700,
-            ),
+            child: Icon(icon, size: 21, color: AppColors.primary700),
           ),
           const SizedBox(width: 14),
           Expanded(
@@ -56,7 +51,9 @@ class NotificationRuleInfoRow extends StatelessWidget {
                 const SizedBox(height: 2),
                 Text(
                   subtitle,
-                  style: AppTypography.bodySRegular.copyWith(
+                  style: AppTypography.bodyMRegular.copyWith(
+                    fontSize: 13,
+                    height: 1.35,
                     color: AppColors.grey700,
                   ),
                 ),

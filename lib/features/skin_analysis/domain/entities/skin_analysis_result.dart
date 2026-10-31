@@ -33,19 +33,19 @@ class SkinAnalysisResult extends Equatable {
   /// Validated AI Skin Analyst report (if generated).
   final SkinReport? report;
 
-  /// Top 3 concerns with the lowest ui_score (areas that need attention),
+  /// Top 3 concerns with the lowest raw_score (areas that need attention),
   /// sorted from lowest to highest score.
   List<SkinConcern> get areasNeedingAttention {
     final sorted = List<SkinConcern>.from(allConcerns)
-      ..sort((a, b) => a.uiScore.compareTo(b.uiScore));
+      ..sort((a, b) => a.rawScore.compareTo(b.rawScore));
     return sorted.take(3).toList();
   }
 
-  /// Top 3 concerns with the highest ui_score (skin strengths),
+  /// Top 3 concerns with the highest raw_score (skin strengths),
   /// sorted from highest to lowest score.
   List<SkinConcern> get strengths {
     final sorted = List<SkinConcern>.from(allConcerns)
-      ..sort((a, b) => b.uiScore.compareTo(a.uiScore));
+      ..sort((a, b) => b.rawScore.compareTo(a.rawScore));
     return sorted.take(3).toList();
   }
 

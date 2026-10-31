@@ -9,7 +9,6 @@ import 'package:go_router/go_router.dart';
 import 'package:kora/common/app_colors.dart';
 import 'package:kora/common/constants/mascot_pose.dart';
 import 'package:kora/common/image_resources.dart';
-import 'package:kora/common/widgets/primary_button.dart';
 import 'package:kora/core/constants/app_constants.dart';
 import 'package:kora/core/router/app_routes.dart';
 import 'package:kora/features/onboarding/presentation/bloc/onboarding_bloc.dart';
@@ -107,6 +106,26 @@ class _DemographicsScreenState extends State<DemographicsScreen> {
     }
   }
 
+  void _onGenderSelected(String gender) {
+    if (context.read<OnboardingBloc>().state.demographicsStep != 0) return;
+    context.read<OnboardingBloc>().add(OnboardingGenderSelected(gender));
+    _onStepNext(0);
+  }
+
+  void _onAgeRangeSelected(String ageRange) {
+    if (context.read<OnboardingBloc>().state.demographicsStep != 1) return;
+    context.read<OnboardingBloc>().add(OnboardingAgeRangeSelected(ageRange));
+    _onStepNext(1);
+  }
+
+  void _onSensitiveSkinSelected(bool hasSensitiveSkin) {
+    if (context.read<OnboardingBloc>().state.demographicsStep != 2) return;
+    context.read<OnboardingBloc>().add(
+      OnboardingSensitiveSkinSelected(hasSensitiveSkin),
+    );
+    _onStepNext(2);
+  }
+
   @override
   Widget build(BuildContext context) {
     return BlocConsumer<OnboardingBloc, OnboardingState>(
@@ -183,18 +202,7 @@ class _DemographicsScreenState extends State<DemographicsScreen> {
                         ],
                       ),
                     ),
-
-                    // Bottom Action CTA
-                    Padding(
-                      padding: const EdgeInsets.only(bottom: 16, top: 16),
-                      child: PrimaryButton(
-                        text: currentStep == 2 ? 'Continue' : 'Next',
-                        onPressed: state.canProceedDemographicsStep
-                            ? () => _onStepNext(currentStep)
-                            : null,
-                        isDisabled: !state.canProceedDemographicsStep,
-                      ),
-                    ),
+                    const SizedBox(height: 16),
                   ],
                 ),
               ),
@@ -232,11 +240,7 @@ class _DemographicsScreenState extends State<DemographicsScreen> {
                     ),
                     width: 24,
                   ),
-                  onTap: () {
-                    context.read<OnboardingBloc>().add(
-                      OnboardingGenderSelected(option.name),
-                    );
-                  },
+                  onTap: () => _onGenderSelected(option.name),
                 ),
               ),
             )
@@ -261,11 +265,7 @@ class _DemographicsScreenState extends State<DemographicsScreen> {
                   isSelected:
                       state.demographics.ageRange == option.label ||
                       state.demographics.ageRange == option.code,
-                  onTap: () {
-                    context.read<OnboardingBloc>().add(
-                      OnboardingAgeRangeSelected(option.label),
-                    );
-                  },
+                  onTap: () => _onAgeRangeSelected(option.label),
                 ),
               ),
             )
@@ -293,11 +293,7 @@ class _DemographicsScreenState extends State<DemographicsScreen> {
               height: 40,
               fit: BoxFit.cover,
             ),
-            onTap: () {
-              context.read<OnboardingBloc>().add(
-                const OnboardingSensitiveSkinSelected(true),
-              );
-            },
+            onTap: () => _onSensitiveSkinSelected(true),
           ),
           const SizedBox(height: 12),
           OnboardingSelectionTile(
@@ -309,11 +305,7 @@ class _DemographicsScreenState extends State<DemographicsScreen> {
               height: 40,
               fit: BoxFit.cover,
             ),
-            onTap: () {
-              context.read<OnboardingBloc>().add(
-                const OnboardingSensitiveSkinSelected(false),
-              );
-            },
+            onTap: () => _onSensitiveSkinSelected(false),
           ),
         ],
       ),

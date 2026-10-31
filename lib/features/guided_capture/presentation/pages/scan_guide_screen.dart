@@ -4,11 +4,13 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:get_it/get_it.dart';
 import 'package:go_router/go_router.dart';
 import 'package:kora/common/app_colors.dart';
 import 'package:kora/common/app_typography.dart';
 import 'package:kora/common/widgets/primary_button.dart';
 import 'package:kora/core/router/app_routes.dart';
+import 'package:kora/core/router/app_session_state.dart';
 
 /// Full-screen scan preparation guide helping users prepare lighting and framing
 /// before initializing the live front-camera guided capture.
@@ -16,11 +18,15 @@ class ScanGuideScreen extends StatelessWidget {
   /// Creates a [ScanGuideScreen].
   const ScanGuideScreen({
     this.targetDestination = AppRoutes.scanCapture,
+    this.sessionState,
     super.key,
   });
 
   /// Target capture destination.
   final String targetDestination;
+
+  /// Optional injected session state.
+  final AppSessionState? sessionState;
 
   static const List<({int step, String title, String subtitle, IconData icon})>
   _tips = [
@@ -49,6 +55,21 @@ class ScanGuideScreen extends StatelessWidget {
       icon: Icons.sentiment_satisfied_outlined,
     ),
   ];
+
+  void _onStartScan(BuildContext context) {
+    unawaited(HapticFeedback.lightImpact());
+    final session =
+        sessionState ??
+        (GetIt.instance.isRegistered<AppSessionState>()
+            ? GetIt.instance<AppSessionState>()
+            : null);
+    session?.markScanGuideSeen();
+    session?.markCaptureTipsSeen();
+
+    if (context.mounted && GoRouter.maybeOf(context) != null) {
+      context.pushReplacement(targetDestination);
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -105,13 +126,7 @@ class ScanGuideScreen extends StatelessWidget {
                   label: 'Start Guided Scan',
                   child: PrimaryButton(
                     text: 'Start Guided Scan',
-                    onPressed: () {
-                      unawaited(HapticFeedback.lightImpact());
-                      if (context.mounted &&
-                          GoRouter.maybeOf(context) != null) {
-                        unawaited(context.push(targetDestination));
-                      }
-                    },
+                    onPressed: () => _onStartScan(context),
                   ),
                 ),
               ),

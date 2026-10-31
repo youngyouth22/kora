@@ -129,6 +129,7 @@ class SecondaryButton extends StatelessWidget {
             )
           : Text(
               text,
+              textAlign: TextAlign.center,
               style:
                   textStyle ??
                   AppTypography.bodyXlSemiBold.copyWith(

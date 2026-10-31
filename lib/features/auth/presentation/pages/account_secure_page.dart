@@ -1,33 +1,90 @@
-import 'package:flutter/foundation.dart';
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:get_it/get_it.dart';
 import 'package:go_router/go_router.dart';
 import 'package:kora/common/app_colors.dart';
 import 'package:kora/common/app_typography.dart';
-import 'package:kora/common/widgets/primary_button.dart';
 import 'package:kora/core/router/app_routes.dart';
+import 'package:kora/core/router/app_session_state.dart';
+import 'package:kora/core/services/revenue_cat_service.dart';
+import 'package:kora/core/usecase/usecase.dart';
 import 'package:kora/features/auth/presentation/bloc/auth_bloc.dart';
 import 'package:kora/features/auth/presentation/bloc/auth_event.dart';
 import 'package:kora/features/auth/presentation/bloc/auth_state.dart';
-import 'package:kora/features/auth/presentation/pages/email_entry_page.dart';
 import 'package:kora/features/auth/presentation/widgets/social_auth_button.dart';
+import 'package:kora/features/onboarding/domain/usecases/complete_onboarding_usecase.dart';
+import 'package:kora/features/onboarding/domain/usecases/link_user_account_usecase.dart';
 
 /// Screen allowing guest users to link their anonymous session to a permanent
-/// account after experiencing the skin scan value and paywall.
+/// Google account after completing the onboarding flow.
 class AccountSecurePage extends StatelessWidget {
   /// Creates an [AccountSecurePage].
-  const AccountSecurePage({super.key});
+  const AccountSecurePage({
+    this.sessionState,
+    this.showPaywallAfterAuth = true,
+    super.key,
+  });
+
+  /// Optional injected [AppSessionState].
+  final AppSessionState? sessionState;
+
+  /// Whether to present the RevenueCat paywall after authentication or skip
+  /// if the user does not yet have an active subscription.
+  final bool showPaywallAfterAuth;
 
   @override
   Widget build(BuildContext context) {
-    final isIos = defaultTargetPlatform == TargetPlatform.iOS;
-
     return BlocConsumer<AuthBloc, AuthState>(
       listener: (context, state) {
         if (state.status == AuthStatus.authenticated ||
             state.status == AuthStatus.skipped) {
-          // O19: Navigate to Home dashboard
-          context.go(AppRoutes.home);
+          final session =
+              sessionState ??
+              (GetIt.instance.isRegistered<AppSessionState>()
+                  ? GetIt.instance<AppSessionState>()
+                  : null);
+
+          if (GetIt.instance.isRegistered<CompleteOnboardingUseCase>()) {
+            unawaited(
+              GetIt.instance<CompleteOnboardingUseCase>()(const NoParams()),
+            );
+          }
+          session
+            ?..setAccountSecureRequired(required: false)
+            ..setOnboardingCompleted(completed: true);
+
+          if (state.status == AuthStatus.authenticated) {
+            session?.setAuthenticated(authenticated: true);
+            final userId = state.user?.id;
+            if (userId != null) {
+              if (GetIt.instance.isRegistered<LinkUserAccountUseCase>()) {
+                unawaited(
+                  GetIt.instance<LinkUserAccountUseCase>()(userId),
+                );
+              }
+              unawaited(_syncRevenueCatIdentity(userId, session));
+            }
+          }
+
+          if (GoRouter.maybeOf(context) == null) return;
+
+          final hasSub = session?.hasActiveSubscription ?? false;
+          if (showPaywallAfterAuth && !hasSub) {
+            context.go(AppRoutes.paywall);
+            return;
+          }
+
+          final intended = session?.consumeIntendedDestination();
+          if (intended != null &&
+              intended != AppRoutes.splash &&
+              intended != AppRoutes.accountSecure &&
+              !intended.startsWith('/onboarding')) {
+            context.go(intended);
+          } else {
+            context.go(AppRoutes.home);
+          }
         } else if (state.status == AuthStatus.failure &&
             state.errorMessage != null) {
           ScaffoldMessenger.of(context).showSnackBar(
@@ -100,24 +157,6 @@ class AccountSecurePage extends StatelessWidget {
                     text: 'Keep your customized active skincare routine',
                   ),
                   const SizedBox(height: 36),
-                  if (isIos) ...[
-                    SocialAuthButton(
-                      text: 'Continue with Apple',
-                      icon: const Icon(
-                        Icons.apple,
-                        color: AppGreyColors.white,
-                        size: 24,
-                      ),
-                      backgroundColor: AppGreyColors.shade1050,
-                      textColor: AppGreyColors.white,
-                      borderColor: AppGreyColors.shade1050,
-                      isLoading: state.isLoading,
-                      onPressed: () => context.read<AuthBloc>().add(
-                        const AuthLinkAppleRequested(),
-                      ),
-                    ),
-                    const SizedBox(height: 12),
-                  ],
                   SocialAuthButton(
                     text: 'Continue with Google',
                     icon: Image.asset(
@@ -134,26 +173,6 @@ class AccountSecurePage extends StatelessWidget {
                     onPressed: () => context.read<AuthBloc>().add(
                       const AuthLinkGoogleRequested(),
                     ),
-                  ),
-                  const SizedBox(height: 12),
-                  PrimaryButton(
-                    text: 'Continue with Email',
-                    height: 52,
-                    icon: const Icon(
-                      Icons.mail_outline,
-                      color: AppGreyColors.shade1050,
-                      size: 20,
-                    ),
-                    onPressed: () {
-                      Navigator.of(context).push<void>(
-                        MaterialPageRoute(
-                          builder: (_) => BlocProvider.value(
-                            value: context.read<AuthBloc>(),
-                            child: const EmailEntryPage(),
-                          ),
-                        ),
-                      );
-                    },
                   ),
                   const SizedBox(height: 16),
                   TextButton(
@@ -178,6 +197,19 @@ class AccountSecurePage extends StatelessWidget {
         );
       },
     );
+  }
+
+  Future<void> _syncRevenueCatIdentity(
+    String userId,
+    AppSessionState? session,
+  ) async {
+    try {
+      await RevenueCatService.logIn(userId);
+      final isPro = await RevenueCatService.isKoraProActive();
+      if (isPro) {
+        session?.setSubscriptionStatus(hasActiveSubscription: true);
+      }
+    } on Object catch (_) {}
   }
 
   Widget _buildBenefitRow({required IconData icon, required String text}) {

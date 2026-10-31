@@ -5,12 +5,15 @@ import 'package:kora/core/database/daos/profile_dao.dart';
 import 'package:kora/core/database/daos/routine_dao.dart';
 import 'package:kora/core/database/daos/scan_dao.dart';
 import 'package:kora/core/database/daos/sync_mutation_dao.dart';
+import 'package:kora/core/network/kora_ai_api_client.dart';
 import 'package:kora/core/network/network_info.dart';
 import 'package:kora/core/network/network_info_impl.dart';
+import 'package:kora/core/services/app_preferences_service.dart';
 import 'package:kora/core/services/camera_permission_service.dart';
 import 'package:kora/core/sync/supabase_sync_driver.dart';
 import 'package:kora/core/sync/sync_engine.dart';
 import 'package:kora/features/auth/auth_injection.dart';
+import 'package:kora/features/coach/coach_injection.dart';
 import 'package:kora/features/experiment/experiment_injection.dart';
 import 'package:kora/features/guided_capture/guided_capture_injection.dart';
 import 'package:kora/features/notifications/notifications_injection.dart';
@@ -18,22 +21,40 @@ import 'package:kora/features/onboarding/data/repositories/user_profile_reposito
 import 'package:kora/features/onboarding/domain/repositories/user_profile_repository.dart';
 import 'package:kora/features/onboarding/onboarding_injection.dart';
 import 'package:kora/features/product_scanner/product_scanner_injection.dart';
+import 'package:kora/features/progress/progress_injection.dart';
 import 'package:kora/features/routine/routine_injection.dart';
 import 'package:kora/features/skin_analysis/data/repositories/scan_record_repository_impl.dart';
 import 'package:kora/features/skin_analysis/domain/repositories/scan_record_repository.dart';
 import 'package:kora/features/skin_analysis/skin_analysis_injection.dart';
 import 'package:kora/features/splash/splash_injection.dart';
 import 'package:kora/features/subscription/subscription_injection.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:supabase/supabase.dart';
 
 /// Global service locator instance.
 final GetIt sl = GetIt.instance;
 
 /// Central entry point to register all application dependencies.
-void configureDependencies() {
+void configureDependencies({SharedPreferences? preferences}) {
   // Core Infrastructure: Network & Database
   if (!sl.isRegistered<NetworkInfo>()) {
     sl.registerLazySingleton<NetworkInfo>(() => const NetworkInfoImpl());
+  }
+
+  if (!sl.isRegistered<KoraAiApiClient>()) {
+    sl.registerLazySingleton<KoraAiApiClient>(
+      () => KoraAiApiClient(
+        supabaseClient: sl.isRegistered<SupabaseClient>()
+            ? sl<SupabaseClient>()
+            : null,
+      ),
+    );
+  }
+
+  if (!sl.isRegistered<AppPreferencesService>()) {
+    sl.registerLazySingleton<AppPreferencesService>(
+      () => SharedPreferencesService(preferences: preferences),
+    );
   }
 
   if (!sl.isRegistered<AppDatabase>()) {
@@ -120,6 +141,8 @@ void configureDependencies() {
   initSubscriptionInjection(sl);
   initAuthInjection(sl);
   initRoutineInjection(sl);
+  initProgressInjection(sl);
   initProductScannerInjection(sl);
   initExperimentInjection(sl);
+  initCoachInjection(sl);
 }

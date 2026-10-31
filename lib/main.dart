@@ -8,11 +8,18 @@ import 'package:kora/core/core.dart';
 import 'package:kora/core/services/revenue_cat_service.dart';
 import 'package:kora/di/injection.dart';
 import 'package:kora/features/notifications/data/datasources/notification_local_datasource.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  configureDependencies();
-  await RevenueCatService.initialize();
+  SharedPreferences? prefs;
+  try {
+    prefs = await SharedPreferences.getInstance();
+  } on Object catch (_) {}
+  configureDependencies(preferences: prefs);
+  try {
+    await RevenueCatService.initialize();
+  } on Object catch (_) {}
   runApp(const MainApp());
 }
 

@@ -41,7 +41,7 @@ class SkinAnalysisRepositoryImpl implements SkinAnalysisRepository {
   @override
   Future<Either<Failure, SkinAnalysisResult>> analyzeSkin({
     required String imagePath,
-    bool useMockIfOffline = true,
+    bool useMockIfOffline = false,
   }) async {
     try {
       final model = await _remoteDataSource.analyzeSkin(

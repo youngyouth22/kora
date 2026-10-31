@@ -1,4 +1,6 @@
 import 'package:get_it/get_it.dart';
+import 'package:kora/core/network/kora_ai_api_client.dart';
+import 'package:kora/features/onboarding/domain/repositories/user_profile_repository.dart';
 import 'package:kora/features/product_scanner/data/datasources/mlkit_barcode_datasource.dart';
 import 'package:kora/features/product_scanner/data/datasources/mlkit_text_ocr_datasource.dart';
 import 'package:kora/features/product_scanner/data/datasources/product_remote_datasource.dart';
@@ -24,7 +26,11 @@ void initProductScannerInjection(GetIt sl) {
   }
   if (!sl.isRegistered<ProductRemoteDataSource>()) {
     sl.registerLazySingleton<ProductRemoteDataSource>(
-      () => const ProductRemoteDataSourceImpl(),
+      () => ProductRemoteDataSourceImpl(
+        aiApiClient: sl.isRegistered<KoraAiApiClient>()
+            ? sl<KoraAiApiClient>()
+            : null,
+      ),
     );
   }
 
@@ -35,6 +41,9 @@ void initProductScannerInjection(GetIt sl) {
         ocrDataSource: sl<MlkitTextOcrDataSource>(),
         barcodeDataSource: sl<MlkitBarcodeDataSource>(),
         remoteDataSource: sl<ProductRemoteDataSource>(),
+        userProfileRepository: sl.isRegistered<UserProfileRepository>()
+            ? sl<UserProfileRepository>()
+            : null,
       ),
     );
   }

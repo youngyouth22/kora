@@ -17,6 +17,13 @@ abstract final class AppColors {
   // Scaffold color
   static const Color scaffoldColor = Color(0xFFF9F6F0);
 
+  // Dark obsidian onboarding theme tokens
+  static const Color darkBackground = Color(0xFF0F1115);
+  static const Color darkCardBackground = Color(0xFF181C24);
+  static const Color darkCardBorder = Color(0xFF282F3D);
+  static const Color darkCardSurface = Color(0xFF1E2430);
+  static const Color darkInputBackground = Color(0xFF13171F);
+
   // ===========================================================================
   // 1. PRIMARY GROUP (Mint / Emerald)
   // ===========================================================================

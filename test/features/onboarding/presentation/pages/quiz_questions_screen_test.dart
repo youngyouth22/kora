@@ -57,7 +57,6 @@ void main() {
         // Verify top progress bar in AppBar
         expect(find.byType(OnboardingProgressBar), findsOneWidget);
         expect(find.text('1 of 6'), findsOneWidget);
-        expect(find.text('Personalizing Your Plan'), findsOneWidget);
 
         // Verify question 0 title and options
         expect(find.text('What is your skin tone?'), findsOneWidget);

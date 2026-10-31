@@ -1,9 +1,12 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:kora/common/app_colors.dart';
 import 'package:kora/common/app_typography.dart';
 
-/// Interactive 7-day selector allowing the user to pick their weekly
-/// scan ritual day.
+/// Sept pilules de même largeur ; la pilule choisie se remplit et prend une
+/// ombre colorée.
 class DayOfWeekSelector extends StatelessWidget {
   /// Creates a [DayOfWeekSelector].
   const DayOfWeekSelector({
@@ -12,92 +15,105 @@ class DayOfWeekSelector extends StatelessWidget {
     super.key,
   });
 
-  /// Currently selected day of week (1 = Monday, 7 = Sunday).
+  /// Selected day, using [DateTime.monday] ... [DateTime.sunday].
   final int selectedDay;
 
-  /// Callback when a day is tapped.
+  /// Called with the tapped day.
   final ValueChanged<int> onDaySelected;
 
-  static const List<({int day, String shortLabel, String fullLabel})> _days = [
-    (day: DateTime.monday, shortLabel: 'M', fullLabel: 'Monday'),
-    (day: DateTime.tuesday, shortLabel: 'T', fullLabel: 'Tuesday'),
-    (day: DateTime.wednesday, shortLabel: 'W', fullLabel: 'Wednesday'),
-    (day: DateTime.thursday, shortLabel: 'T', fullLabel: 'Thursday'),
-    (day: DateTime.friday, shortLabel: 'F', fullLabel: 'Friday'),
-    (day: DateTime.saturday, shortLabel: 'S', fullLabel: 'Saturday'),
-    (day: DateTime.sunday, shortLabel: 'S', fullLabel: 'Sunday'),
+  static const _days = <({int day, String short, String full})>[
+    (day: DateTime.monday, short: 'Mon', full: 'Monday'),
+    (day: DateTime.tuesday, short: 'Tue', full: 'Tuesday'),
+    (day: DateTime.wednesday, short: 'Wed', full: 'Wednesday'),
+    (day: DateTime.thursday, short: 'Thu', full: 'Thursday'),
+    (day: DateTime.friday, short: 'Fri', full: 'Friday'),
+    (day: DateTime.saturday, short: 'Sat', full: 'Saturday'),
+    (day: DateTime.sunday, short: 'Sun', full: 'Sunday'),
   ];
 
   @override
   Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
+    final reduceMotion = MediaQuery.maybeDisableAnimationsOf(context) ?? false;
+    final animDuration = reduceMotion
+        ? Duration.zero
+        : const Duration(milliseconds: 260);
+
+    return Row(
       children: [
-        Text(
-          'Preferred Scan Day',
-          style: AppTypography.bodyMSemiBold.copyWith(
-            color: AppColors.grey1050,
-          ),
-        ),
-        const SizedBox(height: 10),
-        Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: _days.map((item) {
-            final isSelected = selectedDay == item.day;
-            return Semantics(
-              button: true,
-              selected: isSelected,
-              label: '${item.fullLabel}, weekly scan day',
-              child: InkWell(
-                onTap: () => onDaySelected(item.day),
-                borderRadius: BorderRadius.circular(100),
-                child: Container(
-                  width: 44,
-                  height: 48,
-                  alignment: Alignment.center,
-                  decoration: BoxDecoration(
-                    color: isSelected
-                        ? AppColors.primary700
-                        : AppColors.grey100,
-                    borderRadius: BorderRadius.circular(100),
-                    border: Border.all(
-                      color: isSelected
-                          ? AppColors.primary800
-                          : AppColors.grey300,
-                      width: isSelected ? 1.5 : 1.0,
+        for (var i = 0; i < _days.length; i++) ...[
+          if (i > 0) const SizedBox(width: 6),
+          Expanded(child: _buildChip(_days[i], animDuration)),
+        ],
+      ],
+    );
+  }
+
+  Widget _buildChip(
+    ({int day, String short, String full}) d,
+    Duration animDuration,
+  ) {
+    final selected = d.day == selectedDay;
+
+    return Semantics(
+      button: true,
+      selected: selected,
+      label: d.full,
+      excludeSemantics: true,
+      child: GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onTap: () {
+          unawaited(HapticFeedback.selectionClick());
+          onDaySelected(d.day);
+        },
+        child: AnimatedContainer(
+          duration: animDuration,
+          curve: Curves.easeOutCubic,
+          height: 68,
+          decoration: BoxDecoration(
+            color: selected ? AppColors.primary700 : AppColors.neutral50,
+            borderRadius: BorderRadius.circular(18),
+            border: Border.all(
+              color: selected ? AppColors.primary700 : AppColors.grey200,
+            ),
+            boxShadow: selected
+                ? [
+                    BoxShadow(
+                      color: AppColors.primary700.withValues(alpha: 0.32),
+                      blurRadius: 18,
+                      offset: const Offset(0, 8),
                     ),
-                  ),
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Text(
-                        item.shortLabel,
-                        style: AppTypography.bodySBold.copyWith(
-                          color: isSelected
-                              ? AppColors.neutral50
-                              : AppColors.grey900,
-                        ),
-                      ),
-                      if (item.day == DateTime.sunday)
-                        Container(
-                          margin: const EdgeInsets.only(top: 2),
-                          width: 4,
-                          height: 4,
-                          decoration: BoxDecoration(
-                            color: isSelected
-                                ? AppColors.neutral50
-                                : AppColors.primary700,
-                            shape: BoxShape.circle,
-                          ),
-                        ),
-                    ],
+                  ]
+                : const [],
+          ),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              AnimatedDefaultTextStyle(
+                duration: animDuration,
+                style: AppTypography.bodyMSemiBold.copyWith(
+                  fontSize: 13,
+                  color: selected ? AppColors.neutral50 : AppColors.grey700,
+                ),
+                child: Text(d.short),
+              ),
+              const SizedBox(height: 8),
+              AnimatedScale(
+                scale: selected ? 1.0 : 0.0,
+                duration: animDuration,
+                curve: Curves.easeOutCubic,
+                child: Container(
+                  width: 6,
+                  height: 6,
+                  decoration: const BoxDecoration(
+                    color: AppColors.neutral50,
+                    shape: BoxShape.circle,
                   ),
                 ),
               ),
-            );
-          }).toList(),
+            ],
+          ),
         ),
-      ],
+      ),
     );
   }
 }

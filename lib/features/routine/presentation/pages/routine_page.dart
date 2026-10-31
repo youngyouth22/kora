@@ -1,433 +1,321 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:get_it/get_it.dart';
 import 'package:go_router/go_router.dart';
 import 'package:kora/common/app_colors.dart';
 import 'package:kora/common/app_typography.dart';
+import 'package:kora/common/widgets/empty_state_view.dart';
 import 'package:kora/common/widgets/kora_card.dart';
 import 'package:kora/common/widgets/primary_button.dart';
 import 'package:kora/core/router/app_routes.dart';
+import 'package:kora/features/routine/domain/entities/routine_product.dart';
+import 'package:kora/features/routine/presentation/bloc/routine_bloc.dart';
+import 'package:kora/features/routine/presentation/bloc/routine_event.dart';
+import 'package:kora/features/routine/presentation/bloc/routine_state.dart';
+import 'package:kora/features/routine/presentation/widgets/routine_adherence_summary_card.dart';
+import 'package:kora/features/routine/presentation/widgets/routine_compatibility_banner.dart';
+import 'package:kora/features/routine/presentation/widgets/routine_daily_checkin_card.dart';
+import 'package:kora/features/routine/presentation/widgets/routine_period_switcher.dart';
+import 'package:kora/features/routine/presentation/widgets/routine_step_card.dart';
+import 'package:kora/features/routine/routine_injection.dart';
 
-/// Routine management and daily tracking screen (C07 in blueprint).
-class RoutinePage extends StatefulWidget {
+/// Main Routine & Products dashboard screen (Branch 1 of KoraShellScaffold).
+///
+/// Minimalist, modern, flat design (zero drop shadows, zero gradients, 1dp
+/// borders) backed by [RoutineBloc] and SQL-aligned local Drift storage.
+class RoutinePage extends StatelessWidget {
   /// Creates a [RoutinePage].
-  const RoutinePage({super.key});
+  const RoutinePage({
+    this.initialPeriod,
+    super.key,
+  });
 
-  @override
-  State<RoutinePage> createState() => _RoutinePageState();
-}
-
-class _RoutinePageState extends State<RoutinePage> {
-  int _selectedTab = 0; // 0: Morning, 1: Evening
-
-  // Morning items state
-  final List<Map<String, dynamic>> _morningItems = [
-    {
-      'name': 'Gentle Hydrating Cleanser',
-      'brand': 'CeraVe',
-      'step': 'Cleanser',
-      'actives': ['Ceramides', 'Hyaluronic Acid'],
-      'days': 42,
-      'done': true,
-    },
-    {
-      'name': 'Vitamin C 15% Super Serum',
-      'brand': 'Geek & Gorgeous',
-      'step': 'Serum',
-      'actives': ['L-Ascorbic Acid', 'Ferulic Acid'],
-      'days': 28,
-      'done': true,
-    },
-    {
-      'name': 'Barrier Support Moisturizer',
-      'brand': 'Avene',
-      'step': 'Moisturizer',
-      'actives': ['Thermal Water', 'Squalane'],
-      'days': 42,
-      'done': false,
-    },
-    {
-      'name': 'Mineral UV Defense SPF 50',
-      'brand': 'La Roche-Posay',
-      'step': 'Sunscreen',
-      'actives': ['Zinc Oxide', 'Titanium Dioxide'],
-      'days': 60,
-      'done': false,
-    },
-  ];
-
-  // Evening items state
-  final List<Map<String, dynamic>> _eveningItems = [
-    {
-      'name': 'Micellar Water Makeup Remover',
-      'brand': 'Bioderma',
-      'step': 'First Cleanse',
-      'actives': ['Micelles', 'Cucumber Extract'],
-      'days': 42,
-      'done': false,
-    },
-    {
-      'name': 'Gentle Hydrating Cleanser',
-      'brand': 'CeraVe',
-      'step': 'Second Cleanse',
-      'actives': ['Ceramides'],
-      'days': 42,
-      'done': false,
-    },
-    {
-      'name': 'Retinol 0.3% Emulsion (In Experiment)',
-      'brand': 'The Ordinary',
-      'step': 'Active Treatment',
-      'actives': ['Retinol 0.3%', 'Bisabolol'],
-      'days': 12,
-      'done': false,
-      'isExperiment': true,
-    },
-    {
-      'name': 'Intensive Ceramide Balm',
-      'brand': 'CeraVe',
-      'step': 'Moisturizer',
-      'actives': ['Ceramides 1, 3, 6-II', 'Cholesterol'],
-      'days': 42,
-      'done': false,
-    },
-  ];
+  /// Optional query parameter (`?period=am` or `?period=pm`) from SQL
+  /// deep links.
+  final String? initialPeriod;
 
   @override
   Widget build(BuildContext context) {
-    final currentList = _selectedTab == 0 ? _morningItems : _eveningItems;
+    final getIt = GetIt.instance;
+    if (!getIt.isRegistered<RoutineBloc>()) {
+      initRoutineInjection(getIt);
+    }
+    final bloc = getIt<RoutineBloc>();
+    if (bloc.state.status.isInitial) {
+      bloc.add(RoutineStarted(initialPeriod: initialPeriod));
+    } else if (initialPeriod != null &&
+        initialPeriod != bloc.state.selectedPeriod) {
+      bloc.add(RoutinePeriodChanged(initialPeriod!));
+    }
 
+    return BlocProvider<RoutineBloc>.value(
+      value: bloc,
+      child: const _RoutineDashboardView(),
+    );
+  }
+}
+
+class _RoutineDashboardView extends StatelessWidget {
+  const _RoutineDashboardView();
+
+  @override
+  Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: AppColors.scaffoldColor,
       appBar: AppBar(
+        backgroundColor: AppColors.scaffoldColor,
+        elevation: 0,
+        scrolledUnderElevation: 0,
         title: Text(
           'Skincare Routine',
           style: AppTypography.h5Bold.copyWith(color: AppColors.grey1050),
         ),
         actions: [
-          IconButton(
-            tooltip: 'Scan Label (OCR)',
-            icon: const Icon(
-              Icons.document_scanner_outlined,
-              color: AppColors.primary700,
+          Semantics(
+            button: true,
+            label: 'Browse curated product catalog',
+            child: IconButton(
+              tooltip: 'Product Catalog',
+              icon: const Icon(
+                Icons.grid_view_outlined,
+                color: AppColors.grey900,
+              ),
+              onPressed: () => context.push(AppRoutes.routineCatalog),
             ),
-            onPressed: () => context.push(AppRoutes.routineLabel),
           ),
+          Semantics(
+            button: true,
+            label: 'Scan ingredient label with camera OCR',
+            child: IconButton(
+              tooltip: 'Scan Label (OCR)',
+              icon: const Icon(
+                Icons.document_scanner_outlined,
+                color: AppColors.primary700,
+              ),
+              onPressed: () => context.push(AppRoutes.routineLabel),
+            ),
+          ),
+          const SizedBox(width: 4),
         ],
       ),
       body: SafeArea(
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              _buildPeriodTabs(),
-              const SizedBox(height: 16),
-              _buildAdherenceCard(),
-              const SizedBox(height: 12),
-              if (_selectedTab == 1) _buildCompatibilityWarning(),
-              const SizedBox(height: 16),
-              Text(
-                _selectedTab == 0 ? 'Morning Steps (AM)' : 'Evening Steps (PM)',
-                style: AppTypography.h6Bold.copyWith(color: AppColors.grey1050),
-              ),
-              const SizedBox(height: 10),
-              ...List.generate(currentList.length, (index) {
-                final item = currentList[index];
-                return Padding(
-                  padding: const EdgeInsets.only(bottom: 10),
-                  child: _buildRoutineItemCard(item, () {
-                    setState(() {
-                      item['done'] = !(item['done'] as bool);
-                    });
-                  }),
-                );
-              }),
-              const SizedBox(height: 20),
-              PrimaryButton(
-                text: '+ Add product',
-                height: 52,
-                backgroundColor: AppColors.primary700,
-                onPressed: () => context.push(AppRoutes.routineAdd),
-              ),
-              const SizedBox(height: 24),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
+        child: BlocBuilder<RoutineBloc, RoutineState>(
+          builder: (context, state) {
+            if (state.status.isLoading && state.products.isEmpty) {
+              return const _RoutineLoadingSkeleton();
+            }
 
-  Widget _buildPeriodTabs() {
-    return Container(
-      decoration: BoxDecoration(
-        color: AppColors.grey100,
-        borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: AppColors.grey300),
-      ),
-      padding: const EdgeInsets.all(4),
-      child: Row(
-        children: [
-          _buildTabItem(
-            title: 'Morning (AM)',
-            index: 0,
-            icon: Icons.wb_sunny_outlined,
-          ),
-          _buildTabItem(
-            title: 'Evening (PM)',
-            index: 1,
-            icon: Icons.nightlight_outlined,
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildTabItem({
-    required String title,
-    required int index,
-    required IconData icon,
-  }) {
-    final isSelected = _selectedTab == index;
-    return Expanded(
-      child: GestureDetector(
-        onTap: () => setState(() => _selectedTab = index),
-        child: Container(
-          padding: const EdgeInsets.symmetric(vertical: 9),
-          decoration: BoxDecoration(
-            color: isSelected ? AppColors.grey50 : Colors.transparent,
-            borderRadius: BorderRadius.circular(8),
-            border: isSelected ? Border.all(color: AppColors.grey300) : null,
-          ),
-          alignment: Alignment.center,
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Icon(
-                icon,
-                size: 16,
-                color: isSelected ? AppColors.primary700 : AppColors.grey600,
-              ),
-              const SizedBox(width: 6),
-              Text(
-                title,
-                style: isSelected
-                    ? AppTypography.bodySMedium.copyWith(
-                        color: AppColors.primary900,
-                      )
-                    : AppTypography.bodySRegular.copyWith(
-                        color: AppColors.grey700,
-                      ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildAdherenceCard() {
-    return KoraCard(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-      child: Row(
-        children: [
-          Container(
-            width: 38,
-            height: 38,
-            decoration: BoxDecoration(
-              color: AppColors.primary50,
-              borderRadius: BorderRadius.circular(10),
-            ),
-            child: const Icon(
-              Icons.check_circle_outline_rounded,
-              color: AppColors.primary700,
-              size: 20,
-            ),
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  'Adherence: 5 of 7 days this week',
-                  style: AppTypography.bodyMSemiBold.copyWith(
-                    color: AppColors.grey1050,
-                  ),
-                ),
-                Text(
-                  'Consistency makes verdicts scientifically dependable.',
-                  style: AppTypography.bodyXsRegular.copyWith(
-                    color: AppColors.grey700,
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildCompatibilityWarning() {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-      decoration: BoxDecoration(
-        color: AppColors.secondary50,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: AppColors.secondary200),
-      ),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          const Icon(
-            Icons.info_outline_rounded,
-            color: AppColors.secondary700,
-            size: 18,
-          ),
-          const SizedBox(width: 10),
-          Expanded(
-            child: Text(
-              'Compatibility check: Avoid layering AHA/BHA exfoliants with Retinol on the same evening to prevent irritation.',
-              style: AppTypography.bodyXsRegular.copyWith(
-                color: AppColors.secondary900,
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildRoutineItemCard(
-    Map<String, dynamic> item,
-    VoidCallback onToggle,
-  ) {
-    final done = item['done'] as bool;
-    final name = item['name'] as String;
-    final brand = item['brand'] as String;
-    final step = item['step'] as String;
-    final actives = (item['actives'] as List<dynamic>).cast<String>();
-    final days = item['days'] as int;
-    final isExperiment = item['isExperiment'] as bool? ?? false;
-
-    return KoraCard(
-      borderColor: isExperiment ? AppColors.primary300 : AppColors.grey300,
-      backgroundColor: isExperiment
-          ? AppColors.primary50.withValues(alpha: 0.3)
-          : AppColors.grey50,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              GestureDetector(
-                onTap: onToggle,
-                child: Container(
-                  width: 24,
-                  height: 24,
-                  margin: const EdgeInsets.only(top: 2),
-                  decoration: BoxDecoration(
-                    shape: BoxShape.circle,
-                    color: done ? AppColors.primary700 : Colors.transparent,
-                    border: Border.all(
-                      color: done ? AppColors.primary700 : AppColors.grey400,
-                      width: 1.5,
+            if (state.status.isFailure && state.products.isEmpty) {
+              return Center(
+                child: Padding(
+                  padding: const EdgeInsets.all(24),
+                  child: EmptyStateView(
+                    title: 'Could not load your routine',
+                    message:
+                        state.errorMessage ??
+                        'Check your local storage and try reloading.',
+                    primaryActionLabel: 'Retry',
+                    onPrimaryAction: () => context.read<RoutineBloc>().add(
+                      const RoutineStarted(),
                     ),
                   ),
-                  alignment: Alignment.center,
-                  child: done
-                      ? const Icon(
-                          Icons.check,
-                          size: 14,
-                          color: AppColors.grey50,
-                        )
-                      : null,
                 ),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      children: [
-                        Text(
-                          step.toUpperCase(),
-                          style: AppTypography.bodyXsBold.copyWith(
-                            color: AppColors.primary800,
-                            letterSpacing: 0.4,
+              );
+            }
+
+            final am = state.amSummary;
+            final pm = state.pmSummary;
+            final periodProducts = state.activePeriodProducts;
+            final currentSummary = state.selectedPeriod == RoutinePeriod.am
+                ? am
+                : pm;
+
+            return RefreshIndicator(
+              color: AppColors.primary700,
+              onRefresh: () async {
+                context.read<RoutineBloc>().add(const RoutineStarted());
+              },
+              child: ListView(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 20,
+                  vertical: 8,
+                ),
+                children: [
+                  RoutinePeriodSwitcher(
+                    selectedPeriod: state.selectedPeriod,
+                    amCompleted: am.completed,
+                    amTotal: am.total,
+                    pmCompleted: pm.completed,
+                    pmTotal: pm.total,
+                    onPeriodSelected: (period) => context
+                        .read<RoutineBloc>()
+                        .add(RoutinePeriodChanged(period)),
+                  ),
+                  const SizedBox(height: 16),
+                  RoutineAdherenceSummaryCard(
+                    completedSteps: currentSummary.completed,
+                    totalSteps: currentSummary.total,
+                    weeklyAdherenceDays: state.weeklyAdherenceDays,
+                    onExperimentTap: () =>
+                        context.push(AppRoutes.buildExperimentPath('1')),
+                  ),
+                  const SizedBox(height: 10),
+                  RoutineDailyCheckinCard(
+                    checkin: state.todayCheckin,
+                    onTap: () => context.push(AppRoutes.routineCheckin),
+                  ),
+                  for (final notice in state.compatibilityNotices) ...[
+                    const SizedBox(height: 10),
+                    RoutineCompatibilityBanner(notice: notice),
+                  ],
+                  const SizedBox(height: 20),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Expanded(
+                        child: Text(
+                          state.selectedPeriod == RoutinePeriod.am
+                              ? 'Morning Protocol (AM)'
+                              : 'Evening Protocol (PM)',
+                          style: AppTypography.h6Bold.copyWith(
+                            color: AppColors.grey1050,
                           ),
                         ),
-                        if (isExperiment) ...[
-                          const SizedBox(width: 6),
-                          Container(
+                      ),
+                      Semantics(
+                        button: true,
+                        label: 'Explore product catalog',
+                        child: InkWell(
+                          onTap: () => context.push(AppRoutes.routineCatalog),
+                          borderRadius: BorderRadius.circular(6),
+                          child: Padding(
                             padding: const EdgeInsets.symmetric(
                               horizontal: 6,
                               vertical: 2,
                             ),
-                            decoration: BoxDecoration(
-                              color: AppColors.primary700,
-                              borderRadius: BorderRadius.circular(4),
-                            ),
                             child: Text(
-                              'EXPERIMENT',
-                              style: AppTypography.bodyXsBold.copyWith(
-                                color: AppColors.grey50,
-                                fontSize: 9,
+                              'Browse catalog',
+                              style: AppTypography.bodyXsSemiBold.copyWith(
+                                color: AppColors.primary700,
                               ),
                             ),
                           ),
-                        ],
-                        const Spacer(),
-                        Text(
-                          'used $days d',
-                          style: AppTypography.bodyXsRegular.copyWith(
-                            color: AppColors.grey600,
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 10),
+                  if (periodProducts.isEmpty)
+                    _EmptyPeriodCard(
+                      period: state.selectedPeriod,
+                      onAddTap: () => context.push(AppRoutes.routineAdd),
+                    )
+                  else
+                    ...List.generate(periodProducts.length, (index) {
+                      final product = periodProducts[index];
+                      final isDone = state.isStepDone(product.id);
+                      final isExperiment =
+                          product.id == state.experimentProductId;
+
+                      return Padding(
+                        padding: const EdgeInsets.only(bottom: 10),
+                        child: RoutineStepCard(
+                          product: product,
+                          stepIndex: index + 1,
+                          isDone: isDone,
+                          isInExperiment: isExperiment,
+                          onToggleDone: () => context.read<RoutineBloc>().add(
+                            RoutineStepToggled(itemId: product.id),
+                          ),
+                          onCardTap: () => context.push(
+                            AppRoutes.buildRoutineProductDetailPath(product.id),
+                          ),
+                          onIngredientsTap: () => context.push(
+                            AppRoutes.buildRoutineIngredientsPath(product.id),
                           ),
                         ),
-                      ],
-                    ),
-                    const SizedBox(height: 2),
-                    Text(
-                      name,
-                      style: AppTypography.bodyMSemiBold.copyWith(
-                        color: AppColors.grey1050,
-                        decoration: done ? TextDecoration.lineThrough : null,
-                      ),
-                    ),
-                    Text(
-                      brand,
-                      style: AppTypography.bodyXsRegular.copyWith(
-                        color: AppColors.grey700,
-                      ),
-                    ),
-                  ],
-                ),
+                      );
+                    }),
+                  const SizedBox(height: 14),
+                  PrimaryButton(
+                    text: '+ Add product to routine',
+                    height: 52,
+                    backgroundColor: AppColors.primary700,
+                    onPressed: () => context.push(AppRoutes.routineAdd),
+                  ),
+                  const SizedBox(height: 24),
+                ],
               ),
-            ],
+            );
+          },
+        ),
+      ),
+    );
+  }
+}
+
+class _EmptyPeriodCard extends StatelessWidget {
+  const _EmptyPeriodCard({
+    required this.period,
+    required this.onAddTap,
+  });
+
+  final String period;
+  final VoidCallback onAddTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final label = period == RoutinePeriod.am ? 'morning' : 'evening';
+    return KoraCard(
+      padding: const EdgeInsets.all(24),
+      child: Column(
+        children: [
+          const Icon(
+            Icons.spa_outlined,
+            size: 32,
+            color: AppColors.primary700,
           ),
           const SizedBox(height: 10),
-          Wrap(
-            spacing: 6,
-            runSpacing: 4,
-            children: actives.map((active) {
-              return Container(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                decoration: BoxDecoration(
-                  color: AppColors.grey100,
-                  borderRadius: BorderRadius.circular(6),
-                ),
-                child: Text(
-                  active,
-                  style: AppTypography.bodyXsRegular.copyWith(
-                    color: AppColors.grey800,
-                  ),
-                ),
-              );
-            }).toList(),
+          Text(
+            'Your $label routine is empty',
+            style: AppTypography.bodyLSemiBold.copyWith(
+              color: AppColors.grey1050,
+            ),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            'Add a cleanser, treatment, or SPF to track your daily '
+            'consistency.',
+            textAlign: TextAlign.center,
+            style: AppTypography.bodySRegular.copyWith(
+              color: AppColors.grey700,
+            ),
           ),
         ],
       ),
+    );
+  }
+}
+
+class _RoutineLoadingSkeleton extends StatelessWidget {
+  const _RoutineLoadingSkeleton();
+
+  @override
+  Widget build(BuildContext context) {
+    return ListView.separated(
+      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+      itemCount: 4,
+      separatorBuilder: (_, _) => const SizedBox(height: 12),
+      itemBuilder: (_, index) {
+        return Container(
+          height: index == 0 ? 48 : 96,
+          decoration: BoxDecoration(
+            color: AppColors.grey100,
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: AppColors.grey300),
+          ),
+        );
+      },
     );
   }
 }

@@ -1,4 +1,5 @@
 import 'package:equatable/equatable.dart';
+import 'package:kora/features/product_scanner/domain/entities/skincare_report.dart';
 
 /// Source mode that produced the scan result.
 enum ScanSourceMode {
@@ -19,6 +20,7 @@ class ScannedProductResult extends Equatable {
     required this.sourceMode,
     this.barcodeValue,
     this.backendProductData = const {},
+    this.skincareReport,
   });
 
   /// Path to the captured or picked photo file.
@@ -39,6 +41,9 @@ class ScannedProductResult extends Equatable {
   /// Structured backend product data (from database or mock).
   final Map<String, dynamic> backendProductData;
 
+  /// Personalized AI skincare report from `POST /api/scan-product`.
+  final SkincareReport? skincareReport;
+
   @override
   List<Object?> get props => [
     imagePath,
@@ -47,5 +52,6 @@ class ScannedProductResult extends Equatable {
     sourceMode,
     barcodeValue,
     backendProductData,
+    skincareReport,
   ];
 }

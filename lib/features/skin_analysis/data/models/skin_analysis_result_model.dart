@@ -137,15 +137,27 @@ class SkinAnalysisResultModel {
     );
   }
 
+  /// Returns a copy of this model with an updated [SkinReportModel].
+  SkinAnalysisResultModel copyWithReport(SkinReportModel updatedReport) {
+    return SkinAnalysisResultModel(
+      overallScore: overallScore,
+      skinAge: skinAge,
+      skinTypeInfo: skinTypeInfo,
+      resizedImageUrl: resizedImageUrl,
+      concerns: concerns,
+      report: updatedReport,
+    );
+  }
+
   static SkinReportModel _synthesizeFallbackReport({
     required double overallScore,
     required String skinType,
     required List<SkinConcernModel> concerns,
   }) {
     final sortedByWorst = List<SkinConcernModel>.from(concerns)
-      ..sort((a, b) => a.uiScore.compareTo(b.uiScore));
+      ..sort((a, b) => a.rawScore.compareTo(b.rawScore));
     final sortedByBest = List<SkinConcernModel>.from(concerns)
-      ..sort((a, b) => b.uiScore.compareTo(a.uiScore));
+      ..sort((a, b) => b.rawScore.compareTo(a.rawScore));
 
     final topStrengths = sortedByBest.take(2).map((c) {
       return StrengthItemModel(
@@ -165,7 +177,7 @@ class SkinAnalysisResultModel {
             : 'whole_face',
         title: SkinConcernModel.displayNameFor(c.type),
         observation:
-            'Measured score: ${c.uiScore}/100. Targeted hydration and barrier protection recommended.',
+            'Measured score: ${c.rawScore.round()}/100. Targeted hydration and barrier protection recommended.',
         whyItMatters: 'Optimizing gentle targeted care will support long-term skin resilience.',
         suggestedFocus:
             'Incorporate gentle, non-stripping active ingredients gradually.',

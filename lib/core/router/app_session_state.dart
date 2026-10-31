@@ -1,7 +1,11 @@
 // ignore_for_file: document_ignores
 // ignore_for_file: prefer_initializing_formals
 
+import 'dart:async';
+
 import 'package:flutter/foundation.dart';
+import 'package:get_it/get_it.dart';
+import 'package:kora/core/services/app_preferences_service.dart';
 
 /// Manages reactive authentication, onboarding, and subscription state
 /// for GoRouter navigation and redirection.
@@ -9,26 +13,55 @@ import 'package:flutter/foundation.dart';
 /// Implements [ChangeNotifier] so GoRouter can listen for state mutations
 /// and recalculate route guards without reconstructing the router instance.
 class AppSessionState extends ChangeNotifier {
-  /// Creates an [AppSessionState] with optional initial parameters.
+  /// Creates an [AppSessionState] with optional initial parameters and
+  /// persistent preferences service.
   AppSessionState({
     bool isInitialized = false,
     bool isAuthenticated = false,
-    bool isOnboardingCompleted = false,
+    bool? isOnboardingCompleted,
     bool hasActiveSubscription = false,
     bool isPaywallEnforced = false,
     bool isAccountSecureRequired = false,
-    bool hasSeenCaptureTips = false,
-    bool hasSeenProductScanTutorial = false,
+    bool? hasSeenScanGuide,
+    bool? hasSeenCaptureTips,
+    bool? hasSeenProductScanTutorial,
     String? intendedDestination,
-  }) : _isInitialized = isInitialized,
+    AppPreferencesService? preferencesService,
+  }) : _preferencesService =
+           preferencesService ??
+           (GetIt.instance.isRegistered<AppPreferencesService>()
+               ? GetIt.instance<AppPreferencesService>()
+               : null),
+       _isInitialized = isInitialized,
        _isAuthenticated = isAuthenticated,
-       _isOnboardingCompleted = isOnboardingCompleted,
+       _isOnboardingCompleted =
+           isOnboardingCompleted ??
+           (preferencesService?.isOnboardingCompleted ??
+               (GetIt.instance.isRegistered<AppPreferencesService>() &&
+                   GetIt.instance<AppPreferencesService>()
+                       .isOnboardingCompleted)),
        _hasActiveSubscription = hasActiveSubscription,
        _isPaywallEnforced = isPaywallEnforced,
        _isAccountSecureRequired = isAccountSecureRequired,
-       _hasSeenCaptureTips = hasSeenCaptureTips,
-       _hasSeenProductScanTutorial = hasSeenProductScanTutorial,
+       _hasSeenScanGuide =
+           hasSeenScanGuide ??
+           (preferencesService?.hasSeenScanGuide ??
+               (GetIt.instance.isRegistered<AppPreferencesService>() &&
+                   GetIt.instance<AppPreferencesService>().hasSeenScanGuide)),
+       _hasSeenCaptureTips =
+           hasSeenCaptureTips ??
+           (preferencesService?.hasSeenCaptureTips ??
+               (GetIt.instance.isRegistered<AppPreferencesService>() &&
+                   GetIt.instance<AppPreferencesService>().hasSeenCaptureTips)),
+       _hasSeenProductScanTutorial =
+           hasSeenProductScanTutorial ??
+           (preferencesService?.hasSeenProductScanTutorial ??
+               (GetIt.instance.isRegistered<AppPreferencesService>() &&
+                   GetIt.instance<AppPreferencesService>()
+                       .hasSeenProductScanTutorial)),
        _intendedDestination = intendedDestination;
+
+  final AppPreferencesService? _preferencesService;
 
   bool _isInitialized;
   bool _isAuthenticated;
@@ -36,6 +69,7 @@ class AppSessionState extends ChangeNotifier {
   bool _hasActiveSubscription;
   bool _isPaywallEnforced;
   bool _isAccountSecureRequired;
+  bool _hasSeenScanGuide;
   bool _hasSeenCaptureTips;
   bool _hasSeenProductScanTutorial;
   String? _intendedDestination;
@@ -62,8 +96,14 @@ class AppSessionState extends ChangeNotifier {
   /// The deferred deep-link target path to restore after onboarding or auth.
   String? get intendedDestination => _intendedDestination;
 
+  /// Whether the user has already seen the first-scan preparation guide.
+  bool get hasSeenScanGuide => _hasSeenScanGuide;
+
   /// Whether the user has already seen the first-scan capture guidance tips.
   bool get hasSeenCaptureTips => _hasSeenCaptureTips;
+
+  /// Whether the user has already seen the first-scan product tutorial.
+  bool get hasSeenProductScanTutorial => _hasSeenProductScanTutorial;
 
   /// Marks the app initialization complete with the given session state.
   void completeInitialization({
@@ -79,11 +119,21 @@ class AppSessionState extends ChangeNotifier {
     _hasActiveSubscription = hasActiveSubscription;
     _isPaywallEnforced = isPaywallEnforced;
     _isAccountSecureRequired = isAccountSecureRequired;
+    if (_preferencesService != null && isOnboardingCompleted) {
+      unawaited(
+        _preferencesService.setOnboardingCompleted(completed: true),
+      );
+    }
     notifyListeners();
   }
 
-  /// Updates the onboarding completion status.
+  /// Updates the onboarding completion status and persists it.
   void setOnboardingCompleted({required bool completed}) {
+    if (_preferencesService != null) {
+      unawaited(
+        _preferencesService.setOnboardingCompleted(completed: completed),
+      );
+    }
     if (_isOnboardingCompleted == completed) return;
     _isOnboardingCompleted = completed;
     notifyListeners();
@@ -136,8 +186,26 @@ class AppSessionState extends ChangeNotifier {
     return destination;
   }
 
+  /// Updates whether the scan preparation guide has been viewed.
+  void setHasSeenScanGuide({required bool seen}) {
+    if (_preferencesService != null) {
+      unawaited(_preferencesService.setHasSeenScanGuide(seen: seen));
+    }
+    if (_hasSeenScanGuide == seen) return;
+    _hasSeenScanGuide = seen;
+    notifyListeners();
+  }
+
+  /// Marks that the scan guide has been seen (idempotent).
+  void markScanGuideSeen() {
+    setHasSeenScanGuide(seen: true);
+  }
+
   /// Updates whether the capture tips bottom sheet has been viewed.
   void setHasSeenCaptureTips({required bool seen}) {
+    if (_preferencesService != null) {
+      unawaited(_preferencesService.setHasSeenCaptureTips(seen: seen));
+    }
     if (_hasSeenCaptureTips == seen) return;
     _hasSeenCaptureTips = seen;
     notifyListeners();
@@ -145,16 +213,16 @@ class AppSessionState extends ChangeNotifier {
 
   /// Marks that capture tips have been seen (idempotent).
   void markCaptureTipsSeen() {
-    if (_hasSeenCaptureTips) return;
-    _hasSeenCaptureTips = true;
-    notifyListeners();
+    setHasSeenCaptureTips(seen: true);
   }
-
-  /// Whether the user has already seen the first-scan product tutorial.
-  bool get hasSeenProductScanTutorial => _hasSeenProductScanTutorial;
 
   /// Updates whether the product scan tutorial has been viewed.
   void setHasSeenProductScanTutorial({required bool seen}) {
+    if (_preferencesService != null) {
+      unawaited(
+        _preferencesService.setHasSeenProductScanTutorial(seen: seen),
+      );
+    }
     if (_hasSeenProductScanTutorial == seen) return;
     _hasSeenProductScanTutorial = seen;
     notifyListeners();
@@ -162,9 +230,7 @@ class AppSessionState extends ChangeNotifier {
 
   /// Marks that product scan tutorial has been seen (idempotent).
   void markProductScanTutorialSeen() {
-    if (_hasSeenProductScanTutorial) return;
-    _hasSeenProductScanTutorial = true;
-    notifyListeners();
+    setHasSeenProductScanTutorial(seen: true);
   }
 
   /// Resets the session state back to default uninitialized state.
@@ -175,9 +241,13 @@ class AppSessionState extends ChangeNotifier {
     _hasActiveSubscription = false;
     _isPaywallEnforced = false;
     _isAccountSecureRequired = false;
+    _hasSeenScanGuide = false;
     _hasSeenCaptureTips = false;
     _hasSeenProductScanTutorial = false;
     _intendedDestination = null;
+    if (_preferencesService != null) {
+      unawaited(_preferencesService.clear());
+    }
     notifyListeners();
   }
 }

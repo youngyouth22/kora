@@ -1,3 +1,4 @@
+import 'package:drift/drift.dart';
 import 'package:kora/core/database/app_database.dart';
 
 /// Data Access Object for user profiles in Drift SQLite.
@@ -24,6 +25,19 @@ class ProfileDao {
   /// Inserts or updates a [ProfilesCompanion] entry.
   Future<void> upsertProfile(ProfilesCompanion companion) {
     return _db.into(_db.profilesTable).insertOnConflictUpdate(companion);
+  }
+
+  /// Retrieves the most recently updated or created profile.
+  Future<ProfileEntry?> getLatestProfile() {
+    return (_db.select(_db.profilesTable)
+          ..orderBy([
+            (tbl) => OrderingTerm(
+              expression: tbl.updatedAt,
+              mode: OrderingMode.desc,
+            ),
+          ])
+          ..limit(1))
+        .getSingleOrNull();
   }
 
   /// Deletes a profile entry by [id].

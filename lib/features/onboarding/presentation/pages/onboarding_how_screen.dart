@@ -14,7 +14,7 @@ import 'package:kora/core/router/app_routes.dart';
 class OnboardingHowScreen extends StatelessWidget {
   /// Creates an [OnboardingHowScreen].
   const OnboardingHowScreen({
-    this.targetDestination = AppRoutes.onboardingReminder,
+    this.targetDestination = AppRoutes.onboardingConsent,
     super.key,
   });
 

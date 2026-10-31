@@ -1,5 +1,4 @@
 import 'package:dartz/dartz.dart';
-import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -63,49 +62,28 @@ void main() {
 
   tearDown(() async {
     await authBloc.close();
-    debugDefaultTargetPlatformOverride = null;
   });
 
   testWidgets(
-    'AccountSecurePage shows Apple button on iOS and hides it on Android',
+    'AccountSecurePage displays exclusively Google Sign-In and Maybe later',
     (tester) async {
-      try {
-        // 1. iOS check
-        debugDefaultTargetPlatformOverride = TargetPlatform.iOS;
-        await tester.pumpWidget(
-          MaterialApp(
-            theme: AppThemes.lightTheme,
-            home: BlocProvider<AuthBloc>.value(
-              value: authBloc,
-              child: const AccountSecurePage(),
-            ),
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: AppThemes.lightTheme,
+          home: BlocProvider<AuthBloc>.value(
+            value: authBloc,
+            child: const AccountSecurePage(),
           ),
-        );
+        ),
+      );
 
-        expect(find.text('Protect your skin progress'), findsOneWidget);
-        expect(find.text('Continue with Apple'), findsOneWidget);
-        expect(find.text('Continue with Google'), findsOneWidget);
-        expect(find.text('Continue with Email'), findsOneWidget);
-        expect(find.text('Maybe later'), findsOneWidget);
+      expect(find.text('Protect your skin progress'), findsOneWidget);
+      expect(find.text('Continue with Google'), findsOneWidget);
+      expect(find.text('Maybe later'), findsOneWidget);
 
-        // 2. Android check
-        debugDefaultTargetPlatformOverride = TargetPlatform.android;
-        await tester.pumpWidget(
-          MaterialApp(
-            theme: AppThemes.lightTheme,
-            home: BlocProvider<AuthBloc>.value(
-              value: authBloc,
-              child: const AccountSecurePage(),
-            ),
-          ),
-        );
-
-        expect(find.text('Continue with Apple'), findsNothing);
-        expect(find.text('Continue with Google'), findsOneWidget);
-        expect(find.text('Continue with Email'), findsOneWidget);
-      } finally {
-        debugDefaultTargetPlatformOverride = null;
-      }
+      // Verify Apple and Email are removed per Google-only requirement
+      expect(find.text('Continue with Apple'), findsNothing);
+      expect(find.text('Continue with Email'), findsNothing);
     },
   );
 }

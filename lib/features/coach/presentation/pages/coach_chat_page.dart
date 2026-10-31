@@ -1,48 +1,85 @@
+// ignore_for_file: document_ignores, lines_longer_than_80_chars
+
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:get_it/get_it.dart';
 import 'package:go_router/go_router.dart';
 import 'package:kora/common/app_colors.dart';
 import 'package:kora/common/app_typography.dart';
+import 'package:kora/core/enums/status.dart';
 import 'package:kora/core/router/app_routes.dart';
+import 'package:kora/features/coach/coach_injection.dart';
+import 'package:kora/features/coach/data/datasources/coach_remote_datasource.dart';
+import 'package:kora/features/coach/data/repositories/coach_repository_impl.dart';
+import 'package:kora/features/coach/domain/entities/coach_chat_entities.dart';
+import 'package:kora/features/coach/domain/usecases/send_coach_message_usecase.dart';
+import 'package:kora/features/coach/presentation/bloc/coach_chat_bloc.dart';
+import 'package:kora/features/coach/presentation/bloc/coach_chat_event.dart';
+import 'package:kora/features/coach/presentation/bloc/coach_chat_state.dart';
 
-/// Interactive AI Skin Coach chat conversation screen conforming to C14.
-class CoachChatPage extends StatefulWidget {
-  /// Creates a [CoachChatPage] with optional [initialQuestion].
+/// Interactive AI Skin Coach chat conversation screen conforming to C14,
+/// connected to `POST /api/coach/chat` via [CoachChatBloc].
+class CoachChatPage extends StatelessWidget {
+  /// Creates a [CoachChatPage] with optional [initialQuestion] and [bloc].
   const CoachChatPage({
     super.key,
     this.initialQuestion,
+    this.bloc,
   });
 
   /// Optional initial question pre-filled or sent upon opening.
   final String? initialQuestion;
 
+  /// Optional injected [CoachChatBloc] for testing.
+  final CoachChatBloc? bloc;
+
+  CoachChatBloc _resolveBloc() {
+    if (bloc != null) return bloc!;
+    final getIt = GetIt.instance;
+    if (!getIt.isRegistered<CoachChatBloc>()) {
+      initCoachInjection(getIt);
+    }
+    if (getIt.isRegistered<CoachChatBloc>()) {
+      return getIt<CoachChatBloc>();
+    }
+    return CoachChatBloc(
+      sendCoachMessageUseCase: const SendCoachMessageUseCase(
+        CoachRepositoryImpl(
+          remoteDataSource: CoachRemoteDataSourceImpl(),
+        ),
+      ),
+    );
+  }
+
   @override
-  State<CoachChatPage> createState() => _CoachChatPageState();
+  Widget build(BuildContext context) {
+    return BlocProvider<CoachChatBloc>(
+      create: (_) =>
+          _resolveBloc()
+            ..add(CoachChatStartedEvent(initialQuestion: initialQuestion)),
+      child: const _CoachChatView(),
+    );
+  }
 }
 
-class _CoachChatPageState extends State<CoachChatPage> {
+class _CoachChatView extends StatefulWidget {
+  const _CoachChatView();
+
+  @override
+  State<_CoachChatView> createState() => _CoachChatViewState();
+}
+
+class _CoachChatViewState extends State<_CoachChatView> {
   final TextEditingController _textController = TextEditingController();
   final ScrollController _scrollController = ScrollController();
-  final List<Map<String, dynamic>> _messages = [];
-  bool _isBookmarked = false;
 
   final List<String> _suggestedQuestions = const [
     'How to improve rough skin texture after acne?',
     'Nighttime routine for post-acne spot reduction?',
     'Skincare layering mistakes you should know for acne?',
   ];
-
-  @override
-  void initState() {
-    super.initState();
-    if (widget.initialQuestion != null &&
-        widget.initialQuestion!.trim().isNotEmpty) {
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        _sendQuestion(widget.initialQuestion!.trim());
-      });
-    }
-  }
 
   @override
   void dispose() {
@@ -69,53 +106,25 @@ class _CoachChatPageState extends State<CoachChatPage> {
     final query = text.trim();
     if (query.isEmpty) return;
 
-    setState(() {
-      _messages.add({
-        'isUser': true,
-        'text': query,
-      });
-    });
     _textController.clear();
+    context.read<CoachChatBloc>().add(CoachMessageSentEvent(query));
     _scrollToBottom();
-
-    // Simulated contextual AI response conforming to non-medical guidelines
-    unawaited(
-      Future.delayed(const Duration(milliseconds: 400), () {
-        if (!mounted) return;
-        final response = _generateCoachResponse(query);
-        setState(() {
-          _messages.add({
-            'isUser': false,
-            'text': response,
-          });
-        });
-        _scrollToBottom();
-      }),
-    );
   }
 
-  String _generateCoachResponse(String query) {
-    final lower = query.toLowerCase();
-    if (lower.contains('texture')) {
-      return 'To refine rough post-breakout texture without compromising '
-          'your barrier, focus on mild chemical exfoliation like PHA or '
-          'lactic acid 1-2 times weekly, paired with ceramide-rich hydration.';
-    } else if (lower.contains('spot') || lower.contains('dark')) {
-      return 'For post-blemish spots, a nightly regimen with Niacinamide '
-          '(2-5%) and Azelaic Acid helps restore tone balance. Remember '
-          'broad-spectrum SPF every morning to prevent darkening.';
-    } else if (lower.contains('layer') || lower.contains('mistake')) {
-      return 'A common layering mistake is applying actives before hydration '
-          'or mixing low-pH acids with retinoids. Apply from thinnest texture '
-          'to thickest, allowing each step to absorb.';
-    } else if (lower.contains('sensitive')) {
-      return 'For sensitive skin, prioritize centella asiatica, madecassoside, '
-          'and hyaluronic acid, while steering clear of added fragrance '
-          'and drying alcohols.';
+  void _handleSuggestedAction(
+    BuildContext context,
+    CoachSuggestedAction action,
+  ) {
+    switch (action.type) {
+      case 'log_scan':
+        unawaited(context.push(AppRoutes.scanGuide));
+      case 'view_experiment':
+        unawaited(context.push(AppRoutes.experimentNew));
+      case 'routine':
+        context.go(AppRoutes.routine);
+      default:
+        _sendQuestion(action.label);
     }
-    return 'I noted your question! Supporting your skin barrier with '
-        'consistent hydration, gentle non-foaming cleansing, and daily SPF 50 '
-        'will help maintain balance. Would you like to log this?';
   }
 
   @override
@@ -123,31 +132,113 @@ class _CoachChatPageState extends State<CoachChatPage> {
     return Scaffold(
       backgroundColor: AppGreyColors.white,
       body: SafeArea(
-        child: Column(
-          children: [
-            _buildTopBar(context),
-            Expanded(
-              child: ListView(
-                controller: _scrollController,
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 20,
-                  vertical: 12,
+        child: BlocConsumer<CoachChatBloc, CoachChatState>(
+          listener: (context, state) {
+            if (state.status == BaseStatus.success ||
+                state.status == BaseStatus.loading) {
+              _scrollToBottom();
+            }
+          },
+          builder: (context, state) {
+            return Column(
+              children: [
+                _buildTopBar(context, state),
+                if (state.hasActiveRedFlag) _buildRedFlagBanner(),
+                if (state.status == BaseStatus.failure &&
+                    state.errorMessage != null)
+                  _buildErrorBanner(state.errorMessage!),
+                Expanded(
+                  child: ListView(
+                    controller: _scrollController,
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 20,
+                      vertical: 12,
+                    ),
+                    children: [
+                      _buildSuggestedQuestions(),
+                      const SizedBox(height: 16),
+                      ...state.messages.map(
+                        (msg) => _buildMessageBubble(context, msg),
+                      ),
+                      if (state.status == BaseStatus.loading)
+                        _buildTypingIndicator(),
+                    ],
+                  ),
                 ),
-                children: [
-                  _buildSuggestedQuestions(),
-                  const SizedBox(height: 16),
-                  ..._messages.map(_buildMessageBubble),
-                ],
+                _buildInputBar(),
+              ],
+            );
+          },
+        ),
+      ),
+    );
+  }
+
+  Widget _buildRedFlagBanner() {
+    return Semantics(
+      container: true,
+      label: 'Medical safety alert: consult a physician',
+      child: Container(
+        margin: const EdgeInsets.symmetric(horizontal: 20, vertical: 6),
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+        decoration: BoxDecoration(
+          color: AppColors.error50,
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(color: AppColors.error300),
+        ),
+        child: Row(
+          children: [
+            const Icon(
+              Icons.medical_services_outlined,
+              color: AppColors.error600,
+              size: 22,
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Text(
+                'Symptoms mentioned require professional evaluation. Please consult a physician or dermatologist.',
+                style: AppTypography.bodyXsSemiBold.copyWith(
+                  color: AppColors.error700,
+                ),
               ),
             ),
-            _buildInputBar(),
           ],
         ),
       ),
     );
   }
 
-  Widget _buildTopBar(BuildContext context) {
+  Widget _buildErrorBanner(String message) {
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 20, vertical: 4),
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+      decoration: BoxDecoration(
+        color: AppColors.secondary50,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: AppColors.secondary200),
+      ),
+      child: Row(
+        children: [
+          const Icon(
+            Icons.wifi_off_rounded,
+            color: AppColors.secondary700,
+            size: 18,
+          ),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              message,
+              style: AppTypography.bodyXsMedium.copyWith(
+                color: AppColors.secondary800,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildTopBar(BuildContext context, CoachChatState state) {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
       child: Row(
@@ -175,16 +266,18 @@ class _CoachChatPageState extends State<CoachChatPage> {
             label: 'Bookmark conversation',
             child: IconButton(
               icon: Icon(
-                _isBookmarked
+                state.isBookmarked
                     ? Icons.bookmark_rounded
                     : Icons.bookmark_border_rounded,
-                color: _isBookmarked
+                color: state.isBookmarked
                     ? AppColors.primary700
                     : AppColors.grey1050,
                 size: 24,
               ),
               onPressed: () {
-                setState(() => _isBookmarked = !_isBookmarked);
+                context.read<CoachChatBloc>().add(
+                  const CoachBookmarkToggledEvent(),
+                );
               },
             ),
           ),
@@ -262,42 +355,139 @@ class _CoachChatPageState extends State<CoachChatPage> {
     );
   }
 
-  Widget _buildMessageBubble(Map<String, dynamic> message) {
-    final isUser = message['isUser'] as bool;
-    final text = message['text'] as String;
+  Widget _buildMessageBubble(BuildContext context, CoachChatMessage message) {
+    final isUser = message.isUser;
+    final action = message.suggestedAction;
 
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 6),
       child: Align(
         alignment: isUser ? Alignment.centerRight : Alignment.centerLeft,
-        child: Container(
-          constraints: BoxConstraints(
-            maxWidth: MediaQuery.of(context).size.width * 0.82,
-          ),
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-          decoration: BoxDecoration(
-            color: isUser ? AppColors.primary700 : AppColors.grey50,
-            borderRadius: BorderRadius.only(
-              topLeft: const Radius.circular(18),
-              topRight: const Radius.circular(18),
-              bottomLeft: Radius.circular(isUser ? 18 : 4),
-              bottomRight: Radius.circular(isUser ? 4 : 18),
+        child: Column(
+          crossAxisAlignment: isUser
+              ? CrossAxisAlignment.end
+              : CrossAxisAlignment.start,
+          children: [
+            Container(
+              constraints: BoxConstraints(
+                maxWidth: MediaQuery.of(context).size.width * 0.82,
+              ),
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+              decoration: BoxDecoration(
+                color: isUser
+                    ? AppColors.primary700
+                    : (message.isRedFlag
+                          ? AppColors.error50
+                          : AppColors.grey50),
+                borderRadius: BorderRadius.only(
+                  topLeft: const Radius.circular(18),
+                  topRight: const Radius.circular(18),
+                  bottomLeft: Radius.circular(isUser ? 18 : 4),
+                  bottomRight: Radius.circular(isUser ? 4 : 18),
+                ),
+                border: isUser
+                    ? null
+                    : Border.all(
+                        color: message.isRedFlag
+                            ? AppColors.error300
+                            : AppColors.grey300,
+                      ),
+                boxShadow: [
+                  BoxShadow(
+                    color: AppColors.grey300.withAlpha(60),
+                    blurRadius: 4,
+                    offset: const Offset(0, 2),
+                  ),
+                ],
+              ),
+              child: Text(
+                message.text,
+                style: AppTypography.bodyMRegular.copyWith(
+                  color: isUser
+                      ? AppColors.grey50
+                      : (message.isRedFlag
+                            ? AppColors.error800
+                            : AppColors.grey1050),
+                  height: 1.45,
+                ),
+              ),
             ),
-            border: isUser ? null : Border.all(color: AppColors.grey300),
-            boxShadow: [
-              BoxShadow(
-                color: AppColors.grey300.withAlpha(60),
-                blurRadius: 4,
-                offset: const Offset(0, 2),
+            if (!isUser && action != null) ...[
+              const SizedBox(height: 8),
+              Semantics(
+                button: true,
+                label: action.label,
+                child: InkWell(
+                  onTap: () => _handleSuggestedAction(context, action),
+                  borderRadius: BorderRadius.circular(100),
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 14,
+                      vertical: 8,
+                    ),
+                    decoration: BoxDecoration(
+                      color: AppColors.primary50,
+                      borderRadius: BorderRadius.circular(100),
+                      border: Border.all(color: AppColors.primary300),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        const Icon(
+                          Icons.auto_awesome_rounded,
+                          size: 16,
+                          color: AppColors.primary700,
+                        ),
+                        const SizedBox(width: 6),
+                        Text(
+                          action.label,
+                          style: AppTypography.bodyXsSemiBold.copyWith(
+                            color: AppColors.primary900,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
               ),
             ],
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildTypingIndicator() {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 8),
+      child: Align(
+        alignment: Alignment.centerLeft,
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+          decoration: BoxDecoration(
+            color: AppColors.grey50,
+            borderRadius: BorderRadius.circular(18),
+            border: Border.all(color: AppColors.grey300),
           ),
-          child: Text(
-            text,
-            style: AppTypography.bodyMRegular.copyWith(
-              color: isUser ? AppColors.grey50 : AppColors.grey1050,
-              height: 1.45,
-            ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const SizedBox(
+                width: 14,
+                height: 14,
+                child: CircularProgressIndicator(
+                  strokeWidth: 2,
+                  color: AppColors.primary700,
+                ),
+              ),
+              const SizedBox(width: 10),
+              Text(
+                'Amie is thinking...',
+                style: AppTypography.bodyXsMedium.copyWith(
+                  color: AppColors.grey700,
+                ),
+              ),
+            ],
           ),
         ),
       ),
@@ -307,7 +497,6 @@ class _CoachChatPageState extends State<CoachChatPage> {
   Widget _buildInputBar() {
     return Container(
       padding: const EdgeInsets.fromLTRB(16, 8, 16, 12),
-
       child: Row(
         children: [
           Expanded(

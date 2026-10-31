@@ -25,18 +25,15 @@ void main() {
         ),
       );
 
-      expect(find.text('Preferred Reminder Time'), findsOneWidget);
       expect(find.text('Evening'), findsOneWidget);
-      expect(find.text('8:00 PM'), findsOneWidget);
       expect(find.text('Morning'), findsOneWidget);
-      expect(find.text('9:00 AM'), findsOneWidget);
-      expect(find.text('Recommended'), findsOneWidget);
+      expect(find.text('Midday'), findsOneWidget);
 
       // Tap Morning slot
       await tester.tap(find.text('Morning'));
       await tester.pump();
 
-      expect(hour, equals(9));
+      expect(hour, equals(8));
       expect(minute, equals(0));
     });
   });

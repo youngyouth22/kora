@@ -9,12 +9,14 @@ import 'package:kora/common/app_typography.dart';
 import 'package:kora/common/constants/mascot_pose.dart';
 import 'package:kora/common/widgets/mascot_illustration.dart';
 import 'package:kora/common/widgets/primary_button.dart';
+import 'package:kora/features/coach/presentation/widgets/coach_bottom_sheet.dart';
 import 'package:kora/features/skin_analysis/domain/entities/skin_analysis_result.dart';
 import 'package:kora/features/skin_analysis/domain/entities/skin_concern.dart';
 import 'package:kora/features/skin_analysis/domain/entities/skin_report.dart';
 import 'package:kora/features/skin_analysis/presentation/widgets/profile_chip_view.dart';
 import 'package:kora/features/skin_analysis/presentation/widgets/routine_preview_card.dart';
 import 'package:kora/features/skin_analysis/presentation/widgets/skin_concern_mask_viewer.dart';
+import 'package:kora/features/skin_analysis/presentation/widgets/youcam_mask_gallery_widget.dart';
 
 /// Comprehensive bottom sheet & page content presenting the AI Skin Analyst
 /// first-scan results alongside YouCam detection mask images.
@@ -186,14 +188,14 @@ class SkinScanResultBottomSheet extends StatelessWidget {
       ],
       if (report != null && report.coachMessage.isNotEmpty) ...[
         const SizedBox(height: 20),
-        _buildCoachMessageCard(report.coachMessage),
+        _buildCoachMessageCard(context, report.coachMessage),
       ],
       if (report != null && report.safety.needsProfessionalReview) ...[
         const SizedBox(height: 20),
         _buildSafetyAlertCard(report.safety),
       ],
       const SizedBox(height: 28),
-      _buildAllConcernsSection(context),
+      YouCamMaskGalleryWidget(concerns: result.allConcerns),
       const SizedBox(height: 28),
       _buildMedicalDisclaimer(report?.disclaimers),
       const SizedBox(height: 100),
@@ -598,13 +600,6 @@ class SkinScanResultBottomSheet extends StatelessWidget {
         color: AppGreyColors.white,
         borderRadius: BorderRadius.circular(18),
         border: Border.all(color: AppSecondaryColors.shade200),
-        boxShadow: [
-          BoxShadow(
-            color: AppGreyColors.shade1050.withValues(alpha: 0.05),
-            blurRadius: 10,
-            offset: const Offset(0, 3),
-          ),
-        ],
       ),
       clipBehavior: Clip.antiAlias,
       child: Column(
@@ -645,7 +640,7 @@ class SkinScanResultBottomSheet extends StatelessWidget {
                         ),
                       ],
                     ),
-                    _buildScoreBadge(concern.uiScore, true),
+                    _buildScoreBadge(concern.rawScore.round(), true),
                   ],
                 ),
                 const SizedBox(height: 8),
@@ -696,7 +691,7 @@ class SkinScanResultBottomSheet extends StatelessWidget {
                               context,
                               imageUrl: maskUrl,
                               concernTitle: concern.displayName,
-                              scoreText: '${concern.uiScore}/100',
+                              scoreText: '${concern.rawScore.round()}/100',
                             ),
                           );
                         },
@@ -721,7 +716,7 @@ class SkinScanResultBottomSheet extends StatelessWidget {
                             context,
                             imageUrl: maskUrl,
                             concernTitle: concern.displayName,
-                            scoreText: '${concern.uiScore}/100',
+                            scoreText: '${concern.rawScore.round()}/100',
                           ),
                         );
                       },
@@ -1035,7 +1030,7 @@ class SkinScanResultBottomSheet extends StatelessWidget {
                   ),
                 ],
               ),
-              _buildScoreBadge(concern.uiScore, false),
+              _buildScoreBadge(concern.rawScore.round(), false),
             ],
           ),
           const SizedBox(height: 8),
@@ -1053,7 +1048,7 @@ class SkinScanResultBottomSheet extends StatelessWidget {
     );
   }
 
-  Widget _buildCoachMessageCard(String message) {
+  Widget _buildCoachMessageCard(BuildContext context, String message) {
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
@@ -1085,6 +1080,53 @@ class SkinScanResultBottomSheet extends StatelessWidget {
                   style: AppTypography.bodySRegular.copyWith(
                     color: AppGreyColors.shade800,
                     height: 1.4,
+                  ),
+                ),
+                const SizedBox(height: 10),
+                Semantics(
+                  button: true,
+                  label: 'Ask Kora Coach about my report',
+                  child: InkWell(
+                    onTap: () {
+                      unawaited(
+                        showCoachBottomSheet<void>(
+                          context,
+                          initialQuestion:
+                              'Can you explain my skin scan score of '
+                              '${result.overallScore.round()}/100 and how to '
+                              'prioritize my routine?',
+                        ),
+                      );
+                    },
+                    borderRadius: BorderRadius.circular(100),
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 12,
+                        vertical: 6,
+                      ),
+                      decoration: BoxDecoration(
+                        color: AppPrimaryColors.shade100,
+                        borderRadius: BorderRadius.circular(100),
+                        border: Border.all(color: AppPrimaryColors.shade300),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          const Icon(
+                            Icons.chat_bubble_outline_rounded,
+                            size: 14,
+                            color: AppPrimaryColors.shade800,
+                          ),
+                          const SizedBox(width: 6),
+                          Text(
+                            'Ask Kora Coach',
+                            style: AppTypography.bodyXsSemiBold.copyWith(
+                              color: AppPrimaryColors.shade900,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
                   ),
                 ),
               ],
@@ -1172,69 +1214,10 @@ class SkinScanResultBottomSheet extends StatelessWidget {
     );
   }
 
-  Widget _buildAllConcernsSection(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          'All Evaluated Parameters (${result.allConcerns.length})',
-          style: AppTypography.h6Bold.copyWith(
-            color: AppGreyColors.shade1050,
-          ),
-        ),
-        const SizedBox(height: 12),
-        Container(
-          decoration: BoxDecoration(
-            color: AppNeutralColors.shade300,
-            borderRadius: BorderRadius.circular(16),
-          ),
-          child: ListView.separated(
-            shrinkWrap: true,
-            physics: const NeverScrollableScrollPhysics(),
-            itemCount: result.allConcerns.length,
-            separatorBuilder: (_, _) => const Divider(
-              height: 1,
-              color: AppNeutralColors.shade400,
-            ),
-            itemBuilder: (context, index) {
-              final item = result.allConcerns[index];
-              return Padding(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 16,
-                  vertical: 12,
-                ),
-                child: Row(
-                  children: [
-                    Expanded(
-                      child: Text(
-                        item.displayName,
-                        style: AppTypography.bodyMRegular.copyWith(
-                          color: AppGreyColors.shade1050,
-                        ),
-                      ),
-                    ),
-                    _buildStars(item.starRating),
-                    const SizedBox(width: 12),
-                    Text(
-                      '${item.uiScore}',
-                      style: AppTypography.bodyMSemiBold.copyWith(
-                        color: AppGreyColors.shade900,
-                      ),
-                    ),
-                  ],
-                ),
-              );
-            },
-          ),
-        ),
-      ],
-    );
-  }
-
   Widget _buildMedicalDisclaimer(List<String>? disclaimers) {
     final text = disclaimers != null && disclaimers.isNotEmpty
         ? disclaimers.join(' ')
-        : 'This is an AI-based skin analysis, not a medical diagnosis or treatment. Results are for reference only; for any skin-health concerns, please consult a dermatologist.';
+        : 'This is an AI-based skin analysis, not a clinical assessment or medical care. Results are for reference only; for any skin-health concerns, please consult a dermatologist.';
 
     return Container(
       padding: const EdgeInsets.all(14),
@@ -1268,15 +1251,13 @@ class SkinScanResultBottomSheet extends StatelessWidget {
   Widget _buildBottomAction(BuildContext context) {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
-      decoration: BoxDecoration(
+      decoration: const BoxDecoration(
         color: AppGreyColors.white,
-        boxShadow: [
-          BoxShadow(
-            color: AppGreyColors.shade1050.withValues(alpha: 0.08),
-            blurRadius: 10,
-            offset: const Offset(0, -3),
+        border: Border(
+          top: BorderSide(
+            color: AppNeutralColors.shade400,
           ),
-        ],
+        ),
       ),
       child: SafeArea(
         top: false,

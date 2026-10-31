@@ -60,7 +60,7 @@ void main() {
   });
 
   testWidgets(
-    'DemographicsScreen renders gender step, options and mascot Hero',
+    'DemographicsScreen auto-advances on option selection without button',
     (
       tester,
     ) async {
@@ -70,11 +70,24 @@ void main() {
       expect(find.text('What is your gender identity?'), findsOneWidget);
       expect(find.text('Female'), findsOneWidget);
       expect(find.text('Male'), findsOneWidget);
-      expect(find.text('Next'), findsOneWidget);
-      final btn = tester.widget<PrimaryButton>(find.byType(PrimaryButton));
-      expect(btn.isDisabled, isTrue);
+      expect(find.byType(PrimaryButton), findsNothing);
       final hero = tester.widget<Hero>(find.byType(Hero));
       expect(hero.tag, AppConstants.mascotHeroTag);
+
+      // Tapping an option advances directly to the next step (age range)
+      await tester.tap(find.text('Female'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('What is your age range?'), findsOneWidget);
+      expect(find.text('25–34'), findsOneWidget);
+      expect(find.byType(PrimaryButton), findsNothing);
+
+      // Tapping an age option advances directly to sensitive skin step
+      await tester.tap(find.text('25–34'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Do you have sensitive skin?'), findsOneWidget);
+      expect(find.byType(PrimaryButton), findsNothing);
     },
   );
 

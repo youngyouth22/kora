@@ -2,7 +2,10 @@
 
 import 'dart:io';
 import 'dart:isolate';
+import 'dart:math' as math;
 
+import 'package:flutter/foundation.dart';
+import 'package:google_mlkit_face_detection/google_mlkit_face_detection.dart';
 import 'package:image/image.dart' as img;
 
 /// Contract for image preprocessing operations.
@@ -12,6 +15,7 @@ abstract class ImagePreprocessorDataSource {
   /// - Long edge <= 2560px
   /// - File size < 10MB
   /// - Output format: JPEG
+  /// - Face framed to occupy >= 60% of image width
   ///
   /// Returns the path of the processed image file.
   Future<String> preprocessHdImage(String inputPath);
@@ -22,10 +26,18 @@ class _IsolateParams {
   const _IsolateParams({
     required this.inputPath,
     required this.outputPath,
+    this.faceCenterX,
+    this.faceCenterY,
+    this.faceWidth,
+    this.faceHeight,
   });
 
   final String inputPath;
   final String outputPath;
+  final double? faceCenterX;
+  final double? faceCenterY;
+  final double? faceWidth;
+  final double? faceHeight;
 }
 
 /// Implementation using [package:image] running within an isolate.
@@ -44,9 +56,44 @@ class ImagePreprocessorDataSourceImpl implements ImagePreprocessorDataSource {
     final timestamp = DateTime.now().millisecondsSinceEpoch;
     final outputPath = '${tempDir.path}/kora_hd_scan_$timestamp.jpg';
 
+    double? faceCenterX;
+    double? faceCenterY;
+    double? faceWidth;
+    double? faceHeight;
+
+    try {
+      final inputImage = InputImage.fromFilePath(inputPath);
+      final detector = FaceDetector(
+        options: FaceDetectorOptions(
+          minFaceSize: 0.15,
+        ),
+      );
+      final faces = await detector.processImage(inputImage);
+      await detector.close();
+
+      if (faces.isNotEmpty) {
+        final box = faces.first.boundingBox;
+        faceCenterX = box.center.dx;
+        faceCenterY = box.center.dy;
+        faceWidth = box.width;
+        faceHeight = box.height;
+      }
+    } on Object catch (e) {
+      debugPrint(
+        '[ImagePreprocessorDataSource] Face detection unavailable in isolate prep: $e',
+      );
+    }
+
     return Isolate.run(
       () => _resizeAndEncode(
-        _IsolateParams(inputPath: inputPath, outputPath: outputPath),
+        _IsolateParams(
+          inputPath: inputPath,
+          outputPath: outputPath,
+          faceCenterX: faceCenterX,
+          faceCenterY: faceCenterY,
+          faceWidth: faceWidth,
+          faceHeight: faceHeight,
+        ),
       ),
     );
   }
@@ -60,9 +107,64 @@ class ImagePreprocessorDataSourceImpl implements ImagePreprocessorDataSource {
       throw const FormatException('Unable to decode captured face image.');
     }
 
-    // Determine dimensions
-    final width = decoded.width;
-    final height = decoded.height;
+    // 1. Ensure EXIF orientation is baked into pixel data
+    var oriented = img.bakeOrientation(decoded);
+
+    final rawW = oriented.width;
+    final rawH = oriented.height;
+
+    // 2. Smart Framing: Ensure face occupies 65%–70% of the image width to satisfy YouCam AI
+    final fWidth = params.faceWidth;
+    final fCenterX = params.faceCenterX;
+    final fCenterY = params.faceCenterY;
+
+    if (fWidth != null && fWidth > 0 && fCenterX != null && fCenterY != null) {
+      final currentFaceRatio = fWidth / rawW;
+      if (currentFaceRatio < 0.65) {
+        // Target: face occupies 68% of the cropped image width
+        final desiredCropWidth = math.min((fWidth / 0.68).round(), rawW);
+        final desiredCropHeight = math.min(
+          (desiredCropWidth * (4 / 3)).round(),
+          rawH,
+        );
+
+        final cropLeft = (fCenterX - desiredCropWidth / 2).round().clamp(
+          0,
+          rawW - desiredCropWidth,
+        );
+        final cropTop = (fCenterY - desiredCropHeight * 0.45).round().clamp(
+          0,
+          rawH - desiredCropHeight,
+        );
+
+        oriented = img.copyCrop(
+          oriented,
+          x: cropLeft,
+          y: cropTop,
+          width: desiredCropWidth,
+          height: desiredCropHeight,
+        );
+      }
+    } else if (rawH > rawW && (rawW / rawH) > 0.58) {
+      // Fallback if ML Kit bounding box not available:
+      // The camera sensor (3:4) is wider than the phone screen preview (9:16 - 9:19.5).
+      // Crop horizontal sides to match the portrait preview area framed by the user.
+      final targetW = (rawH * (9 / 16)).round();
+      if (targetW < rawW) {
+        final cropX = ((rawW - targetW) / 2).round();
+        oriented = img.copyCrop(
+          oriented,
+          x: cropX,
+          y: 0,
+          width: targetW,
+          height: rawH,
+        );
+      }
+    }
+
+    // 3. Determine dimensions for YouCam HD specifications
+    final width = oriented.width;
+    final height = oriented.height;
 
     final isPortrait = height >= width;
     final shortSide = isPortrait ? width : height;
@@ -76,21 +178,19 @@ class ImagePreprocessorDataSourceImpl implements ImagePreprocessorDataSource {
     var scale = 1.0;
 
     if (shortSide < minShortEdge) {
-      // Upscale so short edge meets 1080px requirement
       scale = minShortEdge / shortSide;
     }
 
-    // If scaled long edge exceeds 2560px, cap it
     if ((longSide * scale) > maxLongEdge) {
       scale = maxLongEdge / longSide;
     }
 
-    var processed = decoded;
+    var processed = oriented;
     if ((scale - 1).abs() > 0.01) {
       final targetWidth = (width * scale).round();
       final targetHeight = (height * scale).round();
       processed = img.copyResize(
-        decoded,
+        oriented,
         width: targetWidth,
         height: targetHeight,
         interpolation: img.Interpolation.linear,

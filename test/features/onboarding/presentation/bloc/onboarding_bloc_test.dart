@@ -150,7 +150,7 @@ void main() {
   });
 
   test(
-    'OnboardingQuizSubmitted saves answers and completes onboarding',
+    'OnboardingQuizSubmitted saves answers and synthesizes skin profile',
     () async {
       for (var i = 0; i < 6; i++) {
         bloc.add(
@@ -166,8 +166,19 @@ void main() {
       await pumpEventQueue();
 
       expect(bloc.state.status, BaseStatus.success);
-      expect(bloc.state.isOnboardingCompleted, isTrue);
+      expect(bloc.state.isQuizSubmitted, isTrue);
       expect(bloc.state.skinProfile, isNotNull);
+    },
+  );
+
+  test(
+    'OnboardingCompleteRequested marks onboarding completed in repository',
+    () async {
+      bloc.add(const OnboardingCompleteRequested());
+      await pumpEventQueue();
+
+      expect(bloc.state.status, BaseStatus.success);
+      expect(bloc.state.isOnboardingCompleted, isTrue);
 
       final isCompleted = await repository.isOnboardingCompleted();
       expect(isCompleted.getOrElse(() => false), isTrue);

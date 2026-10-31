@@ -1,11 +1,19 @@
 // ignore_for_file: document_ignores, one_member_abstracts
-// ignore_for_file: lines_longer_than_80_chars
+// ignore_for_file: lines_longer_than_80_chars, prefer_initializing_formals
 
 import 'dart:io';
 
 import 'package:dio/dio.dart';
+import 'package:flutter/foundation.dart';
+import 'package:get_it/get_it.dart';
 import 'package:kora/core/error/exceptions.dart';
+import 'package:kora/core/network/api_endpoints.dart';
+import 'package:kora/core/network/kora_ai_api_client.dart';
+import 'package:kora/features/onboarding/domain/entities/user_skin_profile.dart';
+import 'package:kora/features/onboarding/domain/repositories/user_profile_repository.dart';
 import 'package:kora/features/skin_analysis/data/models/skin_analysis_result_model.dart';
+import 'package:kora/features/skin_analysis/data/models/skin_report_model.dart';
+import 'package:kora/features/skin_analysis/data/models/skin_report_request_model.dart';
 
 /// Contract for remote skin analysis operations.
 abstract class SkinAnalysisRemoteDataSource {
@@ -15,124 +23,407 @@ abstract class SkinAnalysisRemoteDataSource {
   /// to save API credits during development.
   Future<SkinAnalysisResultModel> analyzeSkin({
     required String imagePath,
-    bool useMock = true,
+    bool useMock = false,
   });
 }
 
 /// Remote data source implementation.
 class SkinAnalysisRemoteDataSourceImpl implements SkinAnalysisRemoteDataSource {
   /// Creates a [SkinAnalysisRemoteDataSourceImpl].
-  SkinAnalysisRemoteDataSourceImpl({Dio? dio}) : _dio = dio ?? Dio();
+  SkinAnalysisRemoteDataSourceImpl({
+    Dio? dio,
+    KoraAiApiClient? aiApiClient,
+    UserSkinProfile? userProfile,
+    List<String> currentRoutineIngredients = const [],
+    String? youcamApiKey,
+    String? youcamBaseUrl,
+    String? supabaseUrl,
+  }) : _dio = dio ?? Dio(),
+       _aiApiClient = aiApiClient,
+       _userProfile = userProfile,
+       _currentRoutineIngredients = currentRoutineIngredients,
+       _youcamApiKey = youcamApiKey ?? ApiEndpoints.youcamApiKey,
+       _youcamBaseUrl = youcamBaseUrl ?? ApiEndpoints.youcamBaseUrl,
+       _supabaseUrl = supabaseUrl ?? ApiEndpoints.supabaseUrl;
 
   final Dio _dio;
+  final KoraAiApiClient? _aiApiClient;
+  final UserSkinProfile? _userProfile;
+  final List<String> _currentRoutineIngredients;
+  final String _youcamApiKey;
+  final String _youcamBaseUrl;
+  final String _supabaseUrl;
 
-  @override
-  Future<SkinAnalysisResultModel> analyzeSkin({
-    required String imagePath,
-    bool useMock = true,
+  KoraAiApiClient get _client =>
+      _aiApiClient ??
+      (GetIt.instance.isRegistered<KoraAiApiClient>()
+          ? GetIt.instance<KoraAiApiClient>()
+          : KoraAiApiClient());
+
+  /// Requests a personalized AI [SkinReportModel] from `POST /api/skin-report`
+  /// on the Kora Skin Coach backend using normalized `raw_score` telemetry.
+  Future<SkinReportModel> generateSkinReport({
+    required SkinReportRequestModel request,
   }) async {
-    if (useMock) {
-      // Return high-fidelity fixture response provided by YouCam API
-      // Simulate real analysis network delay of 2.2 seconds
-      await Future<void>.delayed(const Duration(milliseconds: 2200));
-      return SkinAnalysisResultModel.fromJson(_mockYouCamResponse);
+    final client = _client;
+    final responseJson = await client.post(
+      ApiEndpoints.skinReport,
+      data: request.toJson(),
+    );
+    return ReportResultModel.fromJson(responseJson).report;
+  }
+
+  Future<SkinAnalysisResultModel> _enrichWithAiReportIfAvailable(
+    SkinAnalysisResultModel baseResult,
+  ) async {
+    final client = _client;
+    if (!(await client.isConfigured())) {
+      return baseResult;
     }
 
     try {
-      final file = File(imagePath);
-      if (!file.existsSync()) {
-        throw const ServerException(message: 'Scan image file not found.');
+      var profile = _userProfile;
+      if (profile == null &&
+          GetIt.instance.isRegistered<UserProfileRepository>()) {
+        final profileRes = await GetIt.instance<UserProfileRepository>()
+            .getProfile(id: 'local-user');
+        profile = profileRes.fold((_) => null, (p) => p);
       }
 
-      // Edge Function: scan
-      // Flow: start -> upload -> run
-      final startResponse = await _dio.post<Map<String, dynamic>>(
-        '/functions/v1/scan',
-        data: {
-          'action': 'start',
-          'mode': 'HD',
-          'content_type': 'image/jpeg',
-          'file_size': file.lengthSync(),
-        },
+      final request = SkinReportRequestModel.fromAnalysis(
+        analysis: baseResult,
+        userProfile: profile,
+        fallbackUserId: client.currentUserId,
+        currentRoutineIngredients: _currentRoutineIngredients,
       );
+      final liveReport = await generateSkinReport(request: request);
+      return baseResult.copyWithReport(liveReport);
+    } on Object catch (e, st) {
+      debugPrint('[SkinAnalysisRemoteDataSource] /skin-report error: $e\n$st');
+      // Preserve offline/resilient fallback report if Render AI is unreachable.
+      return baseResult;
+    }
+  }
 
-      final startData = startResponse.data;
-      if (startData == null) {
-        throw const ServerException(message: 'Invalid start response.');
-      }
+  Future<SkinAnalysisResultModel> _analyzeWithYouCamDirect(
+    String imagePath,
+  ) async {
+    final file = File(imagePath);
+    if (!file.existsSync()) {
+      throw const ServerException(message: 'Scan image file not found.');
+    }
 
-      final scanId = startData['scan_id']?.toString();
-      final upload = startData['upload'] as Map<String, dynamic>?;
-      final uploadUrl = upload?['url']?.toString();
+    final fileSize = file.lengthSync();
+    final fileName = 'scan_${DateTime.now().millisecondsSinceEpoch}.jpg';
 
-      if (scanId == null || uploadUrl == null) {
-        throw const ServerException(message: 'Upload target not received.');
-      }
+    // Step 1: Register file with YouCam API
+    final fileRegRes = await _dio.post<Map<String, dynamic>>(
+      '$_youcamBaseUrl/s2s/v2.0/file',
+      data: {
+        'files': [
+          {
+            'content_type': 'image/jpeg',
+            'file_name': fileName,
+            'file_size': fileSize,
+          },
+        ],
+      },
+      options: Options(
+        headers: {
+          'Authorization': 'Bearer $_youcamApiKey',
+          'Content-Type': 'application/json',
+          'X-Pxy-Src': 'kora',
+        },
+      ),
+    );
 
-      // PUT image bytes to YouCam S3 upload target
-      final imageBytes = await file.readAsBytes();
-      final uploadHeaders =
-          (upload?['headers'] as Map<String, dynamic>?)?.map(
-            (k, v) => MapEntry(k, v.toString()),
-          ) ??
-          {};
+    final fileData = fileRegRes.data;
+    final fileDataObj = fileData?['data'] as Map<String, dynamic>?;
+    final filesList = fileDataObj?['files'] as List<dynamic>?;
+    final fileObj = filesList?.firstOrNull as Map<String, dynamic>?;
+    final fileId = fileObj?['file_id']?.toString();
+    final reqList = fileObj?['requests'] as List<dynamic>?;
+    final reqObj = reqList?.firstOrNull as Map<String, dynamic>?;
+    final uploadUrl = reqObj?['url']?.toString();
+    final uploadHeaders =
+        (reqObj?['headers'] as Map<String, dynamic>?)?.map(
+          (k, v) => MapEntry(k, v.toString()),
+        ) ??
+        {};
 
-      await _dio.put<void>(
-        uploadUrl,
-        data: Stream.fromIterable([imageBytes]),
+    if (fileId == null || uploadUrl == null) {
+      throw const ServerException(message: 'YouCam file registration failed.');
+    }
+
+    // Step 2: Upload image bytes to YouCam pre-signed S3 URL
+    final bytes = await file.readAsBytes();
+    await _dio.put<void>(
+      uploadUrl,
+      data: Stream.fromIterable([bytes]),
+      options: Options(
+        headers: {
+          Headers.contentLengthHeader: bytes.length,
+          'Content-Type': 'image/jpeg',
+          ...uploadHeaders,
+        },
+      ),
+    );
+
+    // Step 3: Trigger skin analysis task with all 16 SD actions and mask overlays
+    const actions = [
+      'wrinkle',
+      'pore',
+      'texture',
+      'acne',
+      'oiliness',
+      'radiance',
+      'eye_bag',
+      'age_spot',
+      'dark_circle_v2',
+      'droopy_upper_eyelid',
+      'droopy_lower_eyelid',
+      'firmness',
+      'moisture',
+      'redness',
+      'tear_trough',
+      'skin_type',
+    ];
+
+    final taskRes = await _dio.post<Map<String, dynamic>>(
+      '$_youcamBaseUrl/s2s/v2.1/task/skin-analysis',
+      data: {
+        'src_file_id': fileId,
+        'dst_actions': actions,
+        'format': 'json',
+        'miniserver_args': {'enable_mask_overlay': true},
+      },
+      options: Options(
+        headers: {
+          'Authorization': 'Bearer $_youcamApiKey',
+          'Content-Type': 'application/json',
+          'X-Pxy-Src': 'kora',
+        },
+      ),
+    );
+
+    final taskDataObj = taskRes.data?['data'] as Map<String, dynamic>?;
+    final taskId = taskDataObj?['task_id']?.toString();
+    if (taskId == null) {
+      throw const ServerException(message: 'YouCam task creation failed.');
+    }
+
+    // Step 4: Poll task status (up to 45 seconds)
+    for (var i = 0; i < 22; i++) {
+      await Future<void>.delayed(const Duration(seconds: 2));
+      final statusRes = await _dio.get<Map<String, dynamic>>(
+        '$_youcamBaseUrl/s2s/v2.1/task/skin-analysis/$taskId',
         options: Options(
           headers: {
-            Headers.contentLengthHeader: imageBytes.length,
-            'Content-Type': 'image/jpeg',
-            ...uploadHeaders,
+            'Authorization': 'Bearer $_youcamApiKey',
+            'X-Pxy-Src': 'kora',
           },
         ),
       );
 
-      // Run task
-      final runResponse = await _dio.post<Map<String, dynamic>>(
-        '/functions/v1/scan',
-        data: {
-          'action': 'run',
-          'scan_id': scanId,
-        },
-      );
+      final statusData = statusRes.data?['data'] as Map<String, dynamic>?;
+      final taskStatus = statusData?['task_status']?.toString().toLowerCase();
 
-      final runData = runResponse.data;
-      if (runData != null && runData['results'] != null) {
-        return SkinAnalysisResultModel.fromJson(runData);
+      if (taskStatus == 'success' ||
+          taskStatus == 'succeeded' ||
+          taskStatus == 'completed') {
+        final parsed = SkinAnalysisResultModel.fromJson(statusData!);
+        return _enrichWithAiReportIfAvailable(parsed);
       }
 
-      // Fallback: poll status while background job is processing (up to 60s)
-      for (var i = 0; i < 30; i++) {
-        await Future<void>.delayed(const Duration(seconds: 2));
-        final statusRes = await _dio.post<Map<String, dynamic>>(
-          '/functions/v1/scan',
-          data: {
-            'action': 'status',
-            'scan_id': scanId,
-          },
-        );
+      if (taskStatus == 'error' ||
+          taskStatus == 'failed' ||
+          taskStatus == 'failure') {
+        final errorMsg =
+            statusData?['error_message']?.toString() ??
+            'YouCam analysis failed.';
+        throw ServerException(message: errorMsg);
+      }
+    }
 
-        final stData = statusRes.data;
-        if (stData != null && stData['status'] == 'done') {
-          return SkinAnalysisResultModel.fromJson(stData);
+    throw const ServerException(message: 'YouCam task polling timed out.');
+  }
+
+  /// Executes skin analysis via Supabase Edge Function `/functions/v1/scan`.
+  ///
+  /// This orchestrates:
+  /// - Server-side permission/gate checks
+  /// - Direct S3 upload of the user's photo
+  /// - YouCam AI execution
+  /// - Storing mask images in the private 'scan-masks' Supabase storage bucket
+  /// - Generating secure, time-limited signed URLs
+  /// - Deleting user images from YouCam servers for privacy
+  Future<SkinAnalysisResultModel> _analyzeWithSupabaseEdgeFunction(
+    String imagePath,
+  ) async {
+    final file = File(imagePath);
+    if (!file.existsSync()) {
+      throw const ServerException(message: 'Scan image file not found.');
+    }
+
+    final jwt = _client.currentUserJwt;
+    final headers = <String, String>{
+      'Content-Type': 'application/json',
+      if (jwt.isNotEmpty) 'Authorization': 'Bearer $jwt',
+    };
+
+    final edgeUrl = '$_supabaseUrl${ApiEndpoints.scanFunction}';
+
+    // Step 1: Request upload target from Edge Function
+    final startRes = await _dio.post<Map<String, dynamic>>(
+      edgeUrl,
+      data: {
+        'action': 'start',
+        'mode': 'HD',
+        'content_type': 'image/jpeg',
+        'file_size': file.lengthSync(),
+      },
+      options: Options(headers: headers),
+    );
+
+    final startData = startRes.data;
+    if (startData == null) {
+      throw const ServerException(
+        message: 'Invalid start response from scan Edge Function.',
+      );
+    }
+
+    final scanId = startData['scan_id']?.toString();
+    final upload = startData['upload'] as Map<String, dynamic>?;
+    final uploadUrl = upload?['url']?.toString();
+    final uploadHeaders =
+        (upload?['headers'] as Map<String, dynamic>?)?.map(
+          (k, v) => MapEntry(k, v.toString()),
+        ) ??
+        {};
+
+    if (scanId == null || uploadUrl == null) {
+      throw const ServerException(
+        message: 'Upload target not received from scan Edge Function.',
+      );
+    }
+
+    // Step 2: Upload image directly to YouCam pre-signed upload URL
+    final bytes = await file.readAsBytes();
+    await _dio.put<void>(
+      uploadUrl,
+      data: Stream.fromIterable([bytes]),
+      options: Options(
+        headers: {
+          Headers.contentLengthHeader: bytes.length,
+          'Content-Type': 'image/jpeg',
+          ...uploadHeaders,
+        },
+      ),
+    );
+
+    // Step 3: Run task (Edge Function triggers task and stores masks in bucket)
+    await _dio.post<Map<String, dynamic>>(
+      edgeUrl,
+      data: {
+        'action': 'run',
+        'scan_id': scanId,
+        'enable_mask_overlay': true,
+      },
+      options: Options(headers: headers),
+    );
+
+    // Step 4: Poll status until complete
+    for (var i = 0; i < 25; i++) {
+      await Future<void>.delayed(const Duration(seconds: 2));
+      final statusRes = await _dio.post<Map<String, dynamic>>(
+        edgeUrl,
+        data: {
+          'action': 'status',
+          'scan_id': scanId,
+        },
+        options: Options(headers: headers),
+      );
+
+      final statusData = statusRes.data;
+      final status = statusData?['status']?.toString().toLowerCase();
+
+      if (status == 'done') {
+        final parsed = SkinAnalysisResultModel.fromJson(statusData!);
+        return _enrichWithAiReportIfAvailable(parsed);
+      }
+
+      if (status == 'failed') {
+        final errorMsg =
+            statusData?['message']?.toString() ??
+            'Supabase scan analysis failed.';
+        throw ServerException(message: errorMsg);
+      }
+    }
+
+    throw const ServerException(
+      message: 'Supabase scan Edge Function polling timed out.',
+    );
+  }
+
+  @override
+  Future<SkinAnalysisResultModel> analyzeSkin({
+    required String imagePath,
+    bool useMock = false,
+  }) async {
+    if (!useMock) {
+      Object? lastError;
+
+      // 1. Prioritize the Supabase Edge Function if user has an active Supabase session
+      final jwt = _client.currentUserJwt;
+      if (jwt.isNotEmpty) {
+        try {
+          debugPrint(
+            '[SkinAnalysisRemoteDataSource] Running secure scan via Supabase Edge Function...',
+          );
+          return await _analyzeWithSupabaseEdgeFunction(imagePath);
+        } on Object catch (e, st) {
+          lastError = e;
+          debugPrint(
+            '[SkinAnalysisRemoteDataSource] Supabase Edge Function unavailable or failed: $e\n$st',
+          );
         }
-        if (stData != null && stData['status'] == 'failed') {
-          throw ServerException(
-            message: stData['message']?.toString() ?? 'Skin analysis failed.',
+      } else {
+        debugPrint(
+          '[SkinAnalysisRemoteDataSource] No active Supabase JWT session, using direct YouCam API...',
+        );
+      }
+
+      // 2. Direct YouCam API fallback (works without Supabase JWT)
+      if (_youcamApiKey.isNotEmpty) {
+        try {
+          debugPrint(
+            '[SkinAnalysisRemoteDataSource] Falling back to direct YouCam analysis...',
+          );
+          return await _analyzeWithYouCamDirect(imagePath);
+        } on Object catch (e, st) {
+          lastError = e;
+          debugPrint(
+            '[SkinAnalysisRemoteDataSource] Direct YouCam analysis failed: $e\n$st',
           );
         }
       }
 
-      // If timeout, return parsed response from latest available
-      return SkinAnalysisResultModel.fromJson(_mockYouCamResponse);
-    } on Object catch (e) {
-      if (e is ServerException) rethrow;
-      throw ServerException(
-        message: 'Failed to communicate with scan service: $e',
-      );
+      // Live scan requested: do NOT fall back to mock data!
+      if (lastError is AppException) {
+        throw lastError;
+      } else if (lastError is Exception) {
+        throw ServerException(message: lastError.toString());
+      } else {
+        throw const ServerException(
+          message: 'Unable to reach YouCam AI or Supabase Edge Function. Check your connection and try again.',
+        );
+      }
     }
+
+    // 3. High-fidelity fixture response provided ONLY when useMock == true (tests/preview)
+    await Future<void>.delayed(const Duration(milliseconds: 1500));
+    final base = SkinAnalysisResultModel.fromJson(_mockYouCamResponse);
+    return _enrichWithAiReportIfAvailable(base);
   }
 
   /// Official YouCam Skin AI response structure with 16 concerns, scores, and masks.

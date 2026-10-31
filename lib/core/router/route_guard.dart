@@ -61,8 +61,10 @@ class RouteGuard {
 
     // 3. User has NOT completed onboarding
     if (!session.isOnboardingCompleted) {
-      if (_isOnboardingRoute(sanitizedLocation)) {
-        return null; // Allowed to freely traverse onboarding sequence
+      if (_isOnboardingRoute(sanitizedLocation) ||
+          sanitizedLocation == AppRoutes.accountSecure ||
+          sanitizedLocation == AppRoutes.paywall) {
+        return null; // Allowed to traverse onboarding, sign in, or paywall
       }
 
       // Block access to authenticated app routes, preserve destination

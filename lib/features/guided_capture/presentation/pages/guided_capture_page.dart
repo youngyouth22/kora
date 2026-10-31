@@ -7,7 +7,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:get_it/get_it.dart';
+import 'package:go_router/go_router.dart';
 import 'package:kora/common/app_colors.dart';
+import 'package:kora/core/router/app_routes.dart';
 import 'package:kora/core/router/app_session_state.dart';
 import 'package:kora/di/injection.dart';
 import 'package:kora/features/guided_capture/domain/entities/camera_frame_input.dart';
@@ -75,7 +77,6 @@ class _GuidedCaptureViewState extends State<_GuidedCaptureView>
   var _isCapturingPhoto = false;
   var _hasCameraError = false;
   var _isTutorialVisible = false;
-  var _hasSeenTutorialLocally = false;
 
   @override
   void initState() {
@@ -86,33 +87,33 @@ class _GuidedCaptureViewState extends State<_GuidedCaptureView>
       SystemChrome.setPreferredOrientations([DeviceOrientation.portraitUp]),
     );
     unawaited(_initCamera());
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (!mounted) return;
-      final session =
-          widget.sessionState ??
-          (GetIt.instance.isRegistered<AppSessionState>()
-              ? GetIt.instance<AppSessionState>()
-              : null);
-      if (session != null) {
-        if (!session.hasSeenCaptureTips) {
-          session.markCaptureTipsSeen();
-          unawaited(_showTutorialSheet());
-        }
-      } else if (!_hasSeenTutorialLocally) {
-        _hasSeenTutorialLocally = true;
-        unawaited(_showTutorialSheet());
-      }
-    });
   }
 
   Future<void> _showTutorialSheet() async {
     if (_isTutorialVisible || !mounted) return;
+    final session =
+        widget.sessionState ??
+        (GetIt.instance.isRegistered<AppSessionState>()
+            ? GetIt.instance<AppSessionState>()
+            : null);
+    session?.markCaptureTipsSeen();
     setState(() => _isTutorialVisible = true);
     _bloc.add(const ResetCaptureSessionEvent());
     await CaptureTipsSheet.show(context);
     if (mounted) {
       _bloc.add(const ResetCaptureSessionEvent());
       setState(() => _isTutorialVisible = false);
+    }
+  }
+
+  void _handleClose(BuildContext context) {
+    final nav = Navigator.of(context);
+    if (nav.canPop()) {
+      nav.pop();
+      return;
+    }
+    if (GoRouter.maybeOf(context) != null) {
+      context.go(AppRoutes.home);
     }
   }
 
@@ -253,7 +254,7 @@ class _GuidedCaptureViewState extends State<_GuidedCaptureView>
           if (_hasCameraError) {
             return CameraUnavailableView(
               onRetry: () => unawaited(_initCamera()),
-              onClose: () => Navigator.of(context).maybePop(),
+              onClose: () => _handleClose(context),
             );
           }
           if (controller == null || !controller.value.isInitialized) {
@@ -280,7 +281,7 @@ class _GuidedCaptureViewState extends State<_GuidedCaptureView>
                     TopBarControls(
                       isLightOk: state.isLightOk,
                       isAllValid: state.isAllQualityMet,
-                      onCancel: () => Navigator.of(context).maybePop(),
+                      onCancel: () => _handleClose(context),
                       onHelp: () => unawaited(_showTutorialSheet()),
                     ),
                     if (!_isTutorialVisible)

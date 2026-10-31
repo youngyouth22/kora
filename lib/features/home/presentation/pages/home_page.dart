@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/svg.dart';
+import 'package:get_it/get_it.dart';
 import 'package:go_router/go_router.dart';
 import 'package:kora/common/app_colors.dart';
 import 'package:kora/common/app_typography.dart';
@@ -12,6 +13,7 @@ import 'package:kora/common/widgets/kora_delta_pill.dart';
 import 'package:kora/common/widgets/mascot_illustration.dart';
 import 'package:kora/common/widgets/primary_button.dart';
 import 'package:kora/core/router/app_routes.dart';
+import 'package:kora/core/router/app_session_state.dart';
 import 'package:kora/features/coach/presentation/widgets/coach_bottom_sheet.dart';
 import 'package:kora/features/home/presentation/widgets/day_streak_bar.dart';
 
@@ -152,15 +154,10 @@ class _HomePageState extends State<HomePage> {
         Container(
           height: 48,
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-          decoration: const BoxDecoration(
+          decoration: BoxDecoration(
             shape: BoxShape.circle,
             color: AppGreyColors.white,
-            boxShadow: [
-              BoxShadow(
-                color: AppColors.grey300,
-                blurRadius: 12,
-              ),
-            ],
+            border: Border.all(color: AppColors.grey300),
           ),
           child: SvgPicture.asset(
             ImageResources.flameIcon,
@@ -171,40 +168,6 @@ class _HomePageState extends State<HomePage> {
             ),
           ),
         ),
-        // Container(
-        //   height: 48,
-        //   padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-        //   decoration: BoxDecoration(
-        //     color: AppGreyColors.white,
-        //     borderRadius: BorderRadius.circular(100),
-        //     boxShadow: const [
-        //       BoxShadow(
-        //         color: AppColors.grey300,
-        //         blurRadius: 4,
-        //         offset: Offset(0, 2),
-        //       ),
-        //     ],
-        //   ),
-        //   child: Row(
-        //     spacing: 8,
-        //     children: [
-        //       SvgPicture.asset(
-        //         ImageResources.flameIcon,
-        //         width: 24,
-        //         colorFilter: const ColorFilter.mode(
-        //           AppColors.primary900,
-        //           BlendMode.srcIn,
-        //         ),
-        //       ),
-        //       Text(
-        //         '4 day',
-        //         style: AppTypography.h6Medium.copyWith(
-        //           color: AppColors.grey1050,
-        //         ),
-        //       ),
-        //     ],
-        //   ),
-        // ),
       ],
     );
   }
@@ -260,7 +223,17 @@ class _HomePageState extends State<HomePage> {
             text: 'Preview scan guide',
             height: 48,
             backgroundColor: AppColors.primary700,
-            onPressed: () => context.push(AppRoutes.scanGuide),
+            onPressed: () {
+              final session = GetIt.instance.isRegistered<AppSessionState>()
+                  ? GetIt.instance<AppSessionState>()
+                  : null;
+              final hasSeenGuide = session?.hasSeenScanGuide ?? false;
+              if (hasSeenGuide) {
+                unawaited(context.push(AppRoutes.scanCapture));
+              } else {
+                unawaited(context.push(AppRoutes.scanGuide));
+              }
+            },
           ),
         ],
       ),
@@ -643,13 +616,7 @@ class _HomePageState extends State<HomePage> {
               decoration: BoxDecoration(
                 shape: BoxShape.circle,
                 color: AppGreyColors.white,
-                boxShadow: [
-                  BoxShadow(
-                    color: AppColors.primary500.withAlpha(50),
-                    blurRadius: 16,
-                    offset: const Offset(0, 2),
-                  ),
-                ],
+                border: Border.all(color: AppColors.primary200, width: 1.5),
               ),
               child: const Stack(
                 alignment: Alignment.center,

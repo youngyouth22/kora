@@ -1,4 +1,6 @@
 import 'package:get_it/get_it.dart';
+import 'package:kora/core/services/app_preferences_service.dart';
+import 'package:kora/features/auth/data/datasources/auth_remote_datasource.dart';
 import 'package:kora/features/onboarding/data/datasources/onboarding_local_datasource.dart';
 import 'package:kora/features/onboarding/onboarding_injection.dart';
 import 'package:kora/features/splash/data/datasources/splash_local_datasource.dart';
@@ -19,6 +21,12 @@ void initSplashInjection(GetIt sl) {
     sl.registerLazySingleton<SplashLocalDataSource>(
       () => SplashLocalDataSourceImpl(
         onboardingLocalDataSource: sl<OnboardingLocalDataSource>(),
+        preferencesService: sl.isRegistered<AppPreferencesService>()
+            ? sl<AppPreferencesService>()
+            : null,
+        authRemoteDataSource: sl.isRegistered<AuthRemoteDataSource>()
+            ? sl<AuthRemoteDataSource>()
+            : null,
       ),
     );
   }

@@ -270,11 +270,16 @@ void main() {
         findsOneWidget,
       );
 
-      // Disclaimer
-      expect(
-        find.text('Estimates from a photo, not medical advice.'),
-        findsOneWidget,
+      // Disclaimer (scroll down to find disclaimer at the bottom of the list)
+      final disclaimerFinder = find.text(
+        'Estimates from a photo, not medical advice.',
       );
+      await tester.scrollUntilVisible(
+        disclaimerFinder,
+        300,
+        scrollable: find.byType(Scrollable).first,
+      );
+      expect(disclaimerFinder, findsOneWidget);
     },
   );
 }

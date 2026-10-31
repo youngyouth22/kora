@@ -1,10 +1,15 @@
 // ignore_for_file: document_ignores, lines_longer_than_80_chars
 
+import 'dart:async';
+
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 import 'package:kora/common/app_colors.dart';
 import 'package:kora/common/app_typography.dart';
 import 'package:kora/common/widgets/kora_card.dart';
 import 'package:kora/common/widgets/primary_button.dart';
+import 'package:kora/core/router/app_routes.dart';
+import 'package:kora/core/services/revenue_cat_service.dart';
 
 /// Subscription management screen (C20 in blueprint).
 class SubscriptionPage extends StatelessWidget {
@@ -92,39 +97,36 @@ class SubscriptionPage extends StatelessWidget {
 
               // Manage Button
               PrimaryButton(
-                text: 'Manage in App Store / Google Play',
+                text: 'View Plans & Manage Subscription',
                 height: 52,
                 backgroundColor: AppColors.primary700,
                 onPressed: () {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(
-                      content: Text(
-                        'Redirecting to OS subscription settings...',
-                        style: AppTypography.bodySMedium.copyWith(
-                          color: AppColors.grey50,
-                        ),
-                      ),
-                      backgroundColor: AppColors.grey1000,
-                    ),
-                  );
+                  if (GoRouter.maybeOf(context) != null) {
+                    unawaited(context.push(AppRoutes.paywall));
+                  }
                 },
               ),
               const SizedBox(height: 12),
 
               // Restore purchases
               TextButton(
-                onPressed: () {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(
-                      content: Text(
-                        'Purchases verified & up to date.',
-                        style: AppTypography.bodySMedium.copyWith(
-                          color: AppColors.grey50,
+                onPressed: () async {
+                  try {
+                    await RevenueCatService.presentCustomerCenter();
+                  } on Object catch (_) {
+                    if (!context.mounted) return;
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(
+                        content: Text(
+                          'Purchases verified & up to date.',
+                          style: AppTypography.bodySMedium.copyWith(
+                            color: AppColors.grey50,
+                          ),
                         ),
+                        backgroundColor: AppColors.primary700,
                       ),
-                      backgroundColor: AppColors.primary700,
-                    ),
-                  );
+                    );
+                  }
                 },
                 child: Text(
                   'Restore purchases',

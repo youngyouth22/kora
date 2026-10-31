@@ -18,6 +18,7 @@ class OnboardingState extends Equatable {
     this.quizAnswers = const {},
     this.quizStep = 0,
     this.skinProfile,
+    this.isQuizSubmitted = false,
     this.isOnboardingCompleted = false,
     this.errorMessage,
     this.lastTrackedSource,
@@ -40,6 +41,9 @@ class OnboardingState extends Equatable {
 
   /// Strongly-typed, normalized user skin profile for recommendation algorithms.
   final UserSkinProfile? skinProfile;
+
+  /// Whether the 6-question quiz was submitted and profile synthesized.
+  final bool isQuizSubmitted;
 
   /// Whether the complete onboarding sequence has finished.
   final bool isOnboardingCompleted;
@@ -84,6 +88,7 @@ class OnboardingState extends Equatable {
     Map<int, String>? quizAnswers,
     int? quizStep,
     UserSkinProfile? skinProfile,
+    bool? isQuizSubmitted,
     bool? isOnboardingCompleted,
     String? errorMessage,
     String? lastTrackedSource,
@@ -95,6 +100,7 @@ class OnboardingState extends Equatable {
       quizAnswers: quizAnswers ?? this.quizAnswers,
       quizStep: quizStep ?? this.quizStep,
       skinProfile: skinProfile ?? this.skinProfile,
+      isQuizSubmitted: isQuizSubmitted ?? this.isQuizSubmitted,
       isOnboardingCompleted:
           isOnboardingCompleted ?? this.isOnboardingCompleted,
       errorMessage: errorMessage ?? this.errorMessage,
@@ -110,6 +116,7 @@ class OnboardingState extends Equatable {
     quizAnswers,
     quizStep,
     skinProfile,
+    isQuizSubmitted,
     isOnboardingCompleted,
     errorMessage,
     lastTrackedSource,

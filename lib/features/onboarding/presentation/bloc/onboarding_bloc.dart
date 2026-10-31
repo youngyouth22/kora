@@ -43,6 +43,7 @@ class OnboardingBloc extends Bloc<OnboardingEvent, OnboardingState> {
     on<OnboardingQuestionAnswered>(_onQuestionAnswered);
     on<OnboardingQuizStepChanged>(_onQuizStepChanged);
     on<OnboardingQuizSubmitted>(_onQuizSubmitted);
+    on<OnboardingCompleteRequested>(_onCompleteRequested);
     on<OnboardingLinkAccountRequested>(_onLinkAccountRequested);
     on<OnboardingReset>(_onReset);
   }
@@ -196,23 +197,37 @@ class OnboardingBloc extends Bloc<OnboardingEvent, OnboardingState> {
           await _saveSkinProfile(profileModel);
         }
 
-        final completeResult = await _completeOnboarding(const NoParams());
-        completeResult.fold(
-          (failure) => emit(
-            state.copyWith(
-              status: BaseStatus.failure,
-              errorMessage: failure.message,
-            ),
-          ),
-          (_) => emit(
-            state.copyWith(
-              status: BaseStatus.success,
-              skinProfile: profileModel.toEntity(),
-              isOnboardingCompleted: true,
-            ),
+        emit(
+          state.copyWith(
+            status: BaseStatus.success,
+            skinProfile: profileModel.toEntity(),
+            isQuizSubmitted: true,
           ),
         );
       },
+    );
+  }
+
+  Future<void> _onCompleteRequested(
+    OnboardingCompleteRequested event,
+    Emitter<OnboardingState> emit,
+  ) async {
+    emit(state.copyWith(status: BaseStatus.loading));
+
+    final completeResult = await _completeOnboarding(const NoParams());
+    completeResult.fold(
+      (failure) => emit(
+        state.copyWith(
+          status: BaseStatus.failure,
+          errorMessage: failure.message,
+        ),
+      ),
+      (_) => emit(
+        state.copyWith(
+          status: BaseStatus.success,
+          isOnboardingCompleted: true,
+        ),
+      ),
     );
   }
 
