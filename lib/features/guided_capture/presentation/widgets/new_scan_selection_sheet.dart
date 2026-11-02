@@ -5,6 +5,7 @@ import 'package:get_it/get_it.dart';
 import 'package:go_router/go_router.dart';
 import 'package:kora/common/app_colors.dart';
 import 'package:kora/common/app_typography.dart';
+import 'package:kora/common/image_resources.dart';
 import 'package:kora/common/widgets/custom_bottom_sheet.dart';
 import 'package:kora/core/router/app_routes.dart';
 import 'package:kora/core/router/app_session_state.dart';
@@ -185,6 +186,10 @@ class NewScanSelectionSheet extends StatelessWidget {
               children: [
                 Expanded(
                   child: ScanOptionCard(
+                    imageWidget: Image.asset(
+                      ImageResources.scanFace,
+                      fit: BoxFit.cover,
+                    ),
                     title: 'Face',
                     subtitle: 'See the condition of your skin',
                     onTap: () => _select(context, NewScanChoice.face),
@@ -193,6 +198,10 @@ class NewScanSelectionSheet extends StatelessWidget {
                 const SizedBox(width: 14),
                 Expanded(
                   child: ScanOptionCard(
+                    imageWidget: Image.asset(
+                      ImageResources.scanProduct,
+                      fit: BoxFit.cover,
+                    ),
                     title: 'Cosmetics',
                     subtitle: 'See if a skincare product fits you',
                     onTap: () => _select(context, NewScanChoice.product),

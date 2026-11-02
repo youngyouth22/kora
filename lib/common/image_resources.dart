@@ -32,4 +32,8 @@ abstract final class ImageResources {
       'assets/images/onboarding_scan_week6.jpg';
   static const String onboardingSerumBottle =
       'assets/images/onboarding_serum_bottle.jpg';
+  static const String scanProduct = 'assets/images/scan_product.png';
+  static const String scanFace = 'assets/images/scan_skin.png';
+  static const String ceraveProduct = 'assets/images/cerave_product.png';
+  static const String ceraveProductBg = 'assets/images/Cerave_product_bg.png';
 }

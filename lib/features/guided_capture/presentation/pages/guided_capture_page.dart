@@ -78,6 +78,7 @@ class _GuidedCaptureViewState extends State<_GuidedCaptureView>
   var _isCapturingPhoto = false;
   var _hasCameraError = false;
   var _isTutorialVisible = false;
+  var _isDisposed = false;
 
   @override
   void initState() {
@@ -147,7 +148,7 @@ class _GuidedCaptureViewState extends State<_GuidedCaptureView>
       await controller.lockCaptureOrientation(DeviceOrientation.portraitUp);
       await controller.startImageStream(_onCameraImage);
 
-      if (!mounted) {
+      if (!mounted || _isDisposed) {
         await controller.dispose();
         return;
       }
@@ -200,17 +201,22 @@ class _GuidedCaptureViewState extends State<_GuidedCaptureView>
 
       // Wait until the user comes back (e.g. "Retake"), then resume.
       await widget.onCaptureSuccess(photo);
-      if (!mounted || _cameraController != controller) return;
+      if (!mounted || _isDisposed || _cameraController != controller) return;
       _bloc.add(const ResetCaptureSessionEvent());
       if (!controller.value.isStreamingImages) {
         await controller.startImageStream(_onCameraImage);
       }
-    } on Exception catch (e) {
+    } on Object catch (e) {
       developer.log('Capture failed: $e', name: 'kora.guided_capture');
+      if (_isDisposed || !mounted) return;
       _bloc.add(const ResetCaptureSessionEvent());
-      if (controller.value.isInitialized &&
-          !controller.value.isStreamingImages) {
-        await controller.startImageStream(_onCameraImage);
+      if (_cameraController == controller) {
+        try {
+          if (controller.value.isInitialized &&
+              !controller.value.isStreamingImages) {
+            await controller.startImageStream(_onCameraImage);
+          }
+        } on Object catch (_) {}
       }
     } finally {
       _isCapturingPhoto = false;
@@ -225,16 +231,33 @@ class _GuidedCaptureViewState extends State<_GuidedCaptureView>
       if (controller == null || _isCapturingPhoto) return;
       // Detach before disposing so build() never touches a dead controller.
       setState(() => _cameraController = null);
+      try {
+        if (controller.value.isStreamingImages) {
+          unawaited(controller.stopImageStream().catchError((_) {}));
+        }
+      } on Object catch (_) {}
       unawaited(controller.dispose());
     } else if (state == AppLifecycleState.resumed) {
-      unawaited(_initCamera());
+      if (!_isDisposed && mounted) {
+        unawaited(_initCamera());
+      }
     }
   }
 
   @override
   void dispose() {
+    _isDisposed = true;
     WidgetsBinding.instance.removeObserver(this);
-    unawaited(_cameraController?.dispose());
+    final controller = _cameraController;
+    _cameraController = null;
+    if (controller != null) {
+      try {
+        if (controller.value.isStreamingImages) {
+          unawaited(controller.stopImageStream().catchError((_) {}));
+        }
+      } on Object catch (_) {}
+      unawaited(controller.dispose());
+    }
     super.dispose();
   }
 

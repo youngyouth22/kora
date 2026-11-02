@@ -141,8 +141,7 @@ class _SplashScreenState extends State<SplashScreen>
                     return CustomPaint(
                       size: const Size(156, 156),
                       painter: _CircularLoaderPainter(
-                        rotationAngle:
-                            _rotationController.value * 2 * math.pi,
+                        rotationAngle: _rotationController.value * 2 * math.pi,
                       ),
                     );
                   },

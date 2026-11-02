@@ -94,6 +94,7 @@ class _ProductScannerViewState extends State<_ProductScannerView>
   final ImagePicker _imagePicker = ImagePicker();
   bool _isTakingPicture = false;
   bool _isPreviewPaused = false;
+  bool _isDisposed = false;
 
   @override
   void initState() {
@@ -105,10 +106,20 @@ class _ProductScannerViewState extends State<_ProductScannerView>
     unawaited(_initBackCamera());
   }
 
+  bool _isControllerUsable(CameraController? controller) {
+    if (_isDisposed || !mounted || controller == null) return false;
+    try {
+      return controller.value.isInitialized;
+    } on Object catch (_) {
+      return false;
+    }
+  }
+
   Future<void> _initBackCamera() async {
+    if (_isDisposed) return;
     try {
       final cameras = await availableCameras();
-      if (cameras.isEmpty) return;
+      if (_isDisposed || cameras.isEmpty) return;
 
       _backCamera = cameras.firstWhere(
         (c) => c.lensDirection == CameraLensDirection.back,
@@ -125,52 +136,65 @@ class _ProductScannerViewState extends State<_ProductScannerView>
       );
 
       await controller.initialize();
+      if (_isDisposed || !mounted) {
+        await controller.dispose();
+        return;
+      }
       await controller.setFlashMode(FlashMode.off);
+      if (_isDisposed || !mounted) {
+        await controller.dispose();
+        return;
+      }
       await _startStream(controller);
 
-      if (mounted) {
+      if (mounted && !_isDisposed) {
         setState(() => _cameraController = controller);
+      } else {
+        await controller.dispose();
       }
-    } on Exception catch (_) {
+    } on Object catch (_) {
       // Camera initialization failure handled via UI fallback
     }
   }
 
   Future<void> _startStream(CameraController controller) async {
-    if (controller.value.isStreamingImages) return;
+    if (!_isControllerUsable(controller)) return;
+    try {
+      if (controller.value.isStreamingImages) return;
 
-    await controller.startImageStream((CameraImage image) {
-      if (!mounted || _isTakingPicture) return;
-      context.read<ProductScannerBloc>().add(
-        LiveCameraFrameEvent(image: image, camera: _backCamera),
-      );
-    });
+      await controller.startImageStream((CameraImage image) {
+        if (!mounted || _isDisposed || _isTakingPicture) return;
+        context.read<ProductScannerBloc>().add(
+          LiveCameraFrameEvent(image: image, camera: _backCamera),
+        );
+      });
+    } on Object catch (_) {}
   }
 
   Future<void> _takePhotoAndProcess() async {
     final controller = _cameraController;
-    if (controller == null ||
-        !controller.value.isInitialized ||
-        _isTakingPicture) {
+    if (!_isControllerUsable(controller) || _isTakingPicture) {
       return;
     }
 
     _isTakingPicture = true;
     try {
       await HapticFeedback.mediumImpact();
-      if (controller.value.isStreamingImages) {
+      if (_isControllerUsable(controller) &&
+          controller!.value.isStreamingImages) {
         await controller.stopImageStream();
       }
-      final file = await controller.takePicture();
-      if (mounted) {
+      if (!_isControllerUsable(controller)) return;
+      final file = await controller!.takePicture();
+      if (mounted && !_isDisposed) {
         context.read<ProductScannerBloc>().add(
           ImageCapturedOrPickedEvent(file.path),
         );
       }
-    } on Exception catch (_) {
+    } on Object catch (_) {
       _isTakingPicture = false;
-      if (mounted && controller.value.isInitialized) {
-        await _startStream(controller);
+      if (mounted && !_isDisposed && _isControllerUsable(controller)) {
+        await _startStream(controller!);
       }
     }
   }
@@ -180,11 +204,15 @@ class _ProductScannerViewState extends State<_ProductScannerView>
       source: ImageSource.gallery,
       imageQuality: 95,
     );
-    if (picked != null && mounted) {
-      if (_cameraController?.value.isStreamingImages ?? false) {
-        await _cameraController!.stopImageStream();
+    if (picked != null && mounted && !_isDisposed) {
+      final controller = _cameraController;
+      if (_isControllerUsable(controller) &&
+          controller!.value.isStreamingImages) {
+        try {
+          await controller.stopImageStream();
+        } on Object catch (_) {}
       }
-      if (mounted) {
+      if (mounted && !_isDisposed) {
         context.read<ProductScannerBloc>().add(
           ImageCapturedOrPickedEvent(picked.path),
         );
@@ -194,12 +222,12 @@ class _ProductScannerViewState extends State<_ProductScannerView>
 
   Future<void> _toggleFlash(bool shouldTurnOn) async {
     final controller = _cameraController;
-    if (controller == null || !controller.value.isInitialized) return;
+    if (!_isControllerUsable(controller)) return;
     try {
-      await controller.setFlashMode(
+      await controller!.setFlashMode(
         shouldTurnOn ? FlashMode.torch : FlashMode.off,
       );
-    } on Exception catch (_) {
+    } on Object catch (_) {
       // Flash mode change may be unsupported on some devices
     }
   }
@@ -207,31 +235,61 @@ class _ProductScannerViewState extends State<_ProductScannerView>
   /// Freezes the preview so the lock-on overlay crops a still frame.
   Future<void> _freezePreview() async {
     final controller = _cameraController;
-    if (controller == null || _isPreviewPaused) return;
+    if (!_isControllerUsable(controller) || _isPreviewPaused) return;
     _isPreviewPaused = true;
     unawaited(HapticFeedback.mediumImpact());
     try {
-      await controller.pausePreview();
-    } on Exception catch (_) {
+      await controller!.pausePreview();
+    } on Object catch (_) {
       // Pausing is best-effort; the overlay still works on a live preview.
     }
   }
 
   Future<void> _resumePreview() async {
     final controller = _cameraController;
-    if (controller == null || !_isPreviewPaused) return;
+    if (!_isControllerUsable(controller) || !_isPreviewPaused) return;
     _isPreviewPaused = false;
     try {
-      await controller.resumePreview();
-    } on Exception catch (_) {
+      await controller!.resumePreview();
+    } on Object catch (_) {
       // Resume failures leave the last frame; the user can close & reopen.
     }
   }
 
   @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.inactive ||
+        state == AppLifecycleState.paused) {
+      final controller = _cameraController;
+      if (controller == null || _isTakingPicture) return;
+      setState(() => _cameraController = null);
+      try {
+        if (controller.value.isStreamingImages) {
+          unawaited(controller.stopImageStream().catchError((_) {}));
+        }
+      } on Object catch (_) {}
+      unawaited(controller.dispose());
+    } else if (state == AppLifecycleState.resumed) {
+      if (!_isDisposed && mounted) {
+        unawaited(_initBackCamera());
+      }
+    }
+  }
+
+  @override
   void dispose() {
+    _isDisposed = true;
     WidgetsBinding.instance.removeObserver(this);
-    unawaited(_cameraController?.dispose());
+    final controller = _cameraController;
+    _cameraController = null;
+    if (controller != null) {
+      try {
+        if (controller.value.isStreamingImages) {
+          unawaited(controller.stopImageStream().catchError((_) {}));
+        }
+      } on Object catch (_) {}
+      unawaited(controller.dispose());
+    }
     super.dispose();
   }
 
@@ -241,8 +299,10 @@ class _ProductScannerViewState extends State<_ProductScannerView>
       backgroundColor: AppColors.grey1050,
       body: BlocConsumer<ProductScannerBloc, ProductScannerState>(
         listener: (context, state) async {
+          if (_isDisposed || !mounted) return;
           // 1. Synchronize physical torch
           await _toggleFlash(state.isFlashOn);
+          if (_isDisposed || !mounted) return;
 
           // 1b. Barcode locked: freeze the frame for the lock-on overlay;
           // unfreeze as soon as we are back on the live viewfinder.
@@ -251,6 +311,7 @@ class _ProductScannerViewState extends State<_ProductScannerView>
           } else if (state.step == ProductScannerStep.cameraGuidance) {
             await _resumePreview();
           }
+          if (_isDisposed || !mounted) return;
 
           // 2. Auto-capture in product photo mode if stable
           if (state.step == ProductScannerStep.cameraGuidance &&
@@ -259,16 +320,18 @@ class _ProductScannerViewState extends State<_ProductScannerView>
               !_isTakingPicture) {
             await _takePhotoAndProcess();
           }
+          if (_isDisposed || !mounted) return;
 
           // 3. Resume streaming if returning from processing view
           if (state.step == ProductScannerStep.cameraGuidance &&
               _isTakingPicture) {
             _isTakingPicture = false;
-            if (_cameraController != null &&
-                _cameraController!.value.isInitialized) {
-              await _startStream(_cameraController!);
+            final ctrl = _cameraController;
+            if (_isControllerUsable(ctrl)) {
+              await _startStream(ctrl!);
             }
           }
+          if (_isDisposed || !mounted) return;
 
           // 4. Completed: redirect to result
           if (state.step == ProductScannerStep.completed &&
@@ -352,7 +415,7 @@ class _ProductScannerViewState extends State<_ProductScannerView>
 
           // Screen 1: Camera Guidance View
           final controller = _cameraController;
-          if (controller == null || !controller.value.isInitialized) {
+          if (!_isControllerUsable(controller)) {
             return const Center(
               child: CircularProgressIndicator(
                 color: AppColors.primary500,
@@ -365,7 +428,7 @@ class _ProductScannerViewState extends State<_ProductScannerView>
               state.step == ProductScannerStep.completed;
 
           return CameraCaptureView(
-            cameraController: controller,
+            cameraController: controller!,
             currentMode: state.mode,
             scansLeft: state.scansLeft,
             isFlashOn: state.isFlashOn,

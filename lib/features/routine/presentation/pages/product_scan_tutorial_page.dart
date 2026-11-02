@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:get_it/get_it.dart';
 import 'package:go_router/go_router.dart';
 import 'package:kora/common/app_colors.dart';
+import 'package:kora/common/image_resources.dart';
 import 'package:kora/common/widgets/stepped_tutorial_sheet.dart';
 import 'package:kora/core/router/app_routes.dart';
 import 'package:kora/core/router/app_session_state.dart';
@@ -132,11 +133,22 @@ class _ProductScanTutorialPageState extends State<ProductScanTutorialPage> {
                   transitionBuilder: (child, animation) =>
                       FadeTransition(opacity: animation, child: child),
                   child: _currentIndex == 0
-                      ? const ViewfinderReticleFrame(
-                          key: ValueKey('viewfinder_frame'),
+                      ? ViewfinderReticleFrame(
+                          key: const ValueKey('viewfinder_frame'),
+                          child: Image.asset(
+                            ImageResources.ceraveProduct,
+                            fit: BoxFit.contain,
+                          ),
                         )
-                      : const ProductCardPreview(
-                          key: ValueKey('product_card_preview'),
+                      : ProductCardPreview(
+                          key: const ValueKey('product_card_preview'),
+                          child: ClipRRect(
+                            borderRadius: BorderRadius.circular(16),
+                            child: Image.asset(
+                              ImageResources.ceraveProductBg,
+                              fit: BoxFit.cover,
+                            ),
+                          ),
                         ),
                 ),
               ),

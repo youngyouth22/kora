@@ -6,6 +6,7 @@ import 'dart:io';
 import 'package:camera/camera.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:image/image.dart' as img;
 import 'package:kora/common/app_colors.dart';
 import 'package:kora/common/app_typography.dart';
 import 'package:kora/common/image_resources.dart';
@@ -31,7 +32,7 @@ class DemoScanItem {
   /// Identifier.
   final String id;
 
-  /// Display label (e.g. 'Semaine 1').
+  /// Display label (e.g. 'Week 1').
   final String label;
 
   /// Week number.
@@ -61,24 +62,24 @@ class DemoScanPicker extends StatefulWidget {
   static const List<DemoScanItem> presets = [
     DemoScanItem(
       id: 'week1',
-      label: 'Semaine 1',
+      label: 'Week 1',
       weekNumber: 1,
       assetPath: ImageResources.onboardingScanWeek1,
-      description: 'Point de départ',
+      description: 'Starting baseline',
     ),
     DemoScanItem(
       id: 'week3',
-      label: 'Semaine 3',
+      label: 'Week 3',
       weekNumber: 3,
       assetPath: ImageResources.onboardingScanWeek3,
-      description: 'Mi-parcours',
+      description: 'Midway progress',
     ),
     DemoScanItem(
       id: 'week6',
-      label: 'Semaine 6',
+      label: 'Week 6',
       weekNumber: 6,
       assetPath: ImageResources.onboardingScanWeek6,
-      description: 'Bilan final',
+      description: 'Final verdict',
     ),
   ];
 
@@ -93,25 +94,63 @@ class _DemoScanPickerState extends State<DemoScanPicker> {
 
   DemoScanItem get _selectedItem => DemoScanPicker.presets[_selectedIndex];
 
+  /// Crops square preset photo to a 3:4 portrait framing the face so it
+  /// occupies >= 65% of the frame, and scales to YouCam HD standard (1080x1440).
+  static Uint8List _cropAndScaleForYouCam(Uint8List rawBytes) {
+    final decoded = img.decodeImage(rawBytes);
+    if (decoded == null) return rawBytes;
+
+    final oriented = img.bakeOrientation(decoded);
+    final rawW = oriented.width;
+    final rawH = oriented.height;
+
+    // Crop to 3:4 portrait focusing on upper-center so face occupies ~70%
+    // of the frame width to satisfy YouCam's strict >= 60% requirement.
+    final cropW = (rawW * 0.62).round();
+    final cropH = (cropW * (4 / 3)).round().clamp(1, rawH);
+    final cropX = ((rawW - cropW) / 2).round().clamp(0, rawW - cropW);
+    final cropY = (rawH * 0.46 - cropH * 0.45).round().clamp(0, rawH - cropH);
+
+    final cropped = img.copyCrop(
+      oriented,
+      x: cropX,
+      y: cropY,
+      width: cropW,
+      height: cropH,
+    );
+
+    // Resize to HD: 1080 x 1440
+    final resized = img.copyResize(
+      cropped,
+      width: 1080,
+      height: 1440,
+      interpolation: img.Interpolation.linear,
+    );
+
+    return Uint8List.fromList(img.encodeJpg(resized, quality: 95));
+  }
+
   Future<void> _executeDemoCapture(DemoScanItem item) async {
     if (_isProcessing) return;
+    final bundle = DefaultAssetBundle.of(context);
     setState(() => _isProcessing = true);
 
     try {
-      await HapticFeedback.mediumImpact();
+      unawaited(HapticFeedback.mediumImpact());
 
-      // Load asset bytes and cache to temporary file for XFile compatibility
-      final byteData = await rootBundle.load(item.assetPath);
-      final tempDir = await getTemporaryDirectory();
-      final fileName = 'demo_${item.id}_${DateTime.now().millisecondsSinceEpoch}.jpg';
-      final file = File('${tempDir.path}/$fileName');
-      await file.writeAsBytes(
-        byteData.buffer.asUint8List(
-          byteData.offsetInBytes,
-          byteData.lengthInBytes,
-        ),
-        flush: true,
+      // Load asset bytes, crop to face portrait, and scale to YouCam HD
+      final byteData = await bundle.load(item.assetPath);
+      final rawBytes = byteData.buffer.asUint8List(
+        byteData.offsetInBytes,
+        byteData.lengthInBytes,
       );
+      final hdBytes = _cropAndScaleForYouCam(rawBytes);
+
+      final tempDir = await getTemporaryDirectory();
+      final fileName =
+          'demo_${item.id}_${DateTime.now().millisecondsSinceEpoch}.jpg';
+      final file = File('${tempDir.path}/$fileName')
+        ..writeAsBytesSync(hdBytes, flush: true);
 
       final xFile = XFile(file.path);
       await widget.onCaptureDemoPhoto(xFile);
@@ -147,7 +186,8 @@ class _DemoScanPickerState extends State<DemoScanPicker> {
   /// Compact floating button positioned bottom-left.
   Widget _buildTriggerButton(BuildContext context) {
     return Semantics(
-      label: 'Mode Démo Vidéo: ${_selectedItem.label}. Appuyer pour ouvrir le sélecteur.',
+      label:
+          'Video Demo Mode: ${_selectedItem.label}. Tap to choose a preset photo.',
       button: true,
       child: GestureDetector(
         onTap: () {
@@ -184,6 +224,8 @@ class _DemoScanPickerState extends State<DemoScanPicker> {
                   child: Image.asset(
                     _selectedItem.assetPath,
                     fit: BoxFit.cover,
+                    errorBuilder: (context, error, stackTrace) =>
+                        const SizedBox.shrink(),
                   ),
                 ),
               ),
@@ -205,7 +247,7 @@ class _DemoScanPickerState extends State<DemoScanPicker> {
                           borderRadius: BorderRadius.circular(4),
                         ),
                         child: Text(
-                          'DÉMO',
+                          'DEMO',
                           style: AppTypography.bodyXsBold.copyWith(
                             color: AppGreyColors.white,
                             fontSize: 9,
@@ -215,7 +257,7 @@ class _DemoScanPickerState extends State<DemoScanPicker> {
                       ),
                       const SizedBox(width: 4),
                       Text(
-                        'S${_selectedItem.weekNumber}',
+                        'W${_selectedItem.weekNumber}',
                         style: AppTypography.bodyMBold.copyWith(
                           color: AppGreyColors.white,
                           fontSize: 13,
@@ -224,7 +266,7 @@ class _DemoScanPickerState extends State<DemoScanPicker> {
                     ],
                   ),
                   Text(
-                    'Toucher pour changer',
+                    'Tap to change',
                     style: AppTypography.bodyXsRegular.copyWith(
                       color: AppGreyColors.shade500,
                       fontSize: 10,
@@ -234,7 +276,9 @@ class _DemoScanPickerState extends State<DemoScanPicker> {
               ),
               const SizedBox(width: 4),
               Icon(
-                _isExpanded ? Icons.keyboard_arrow_down : Icons.keyboard_arrow_up,
+                _isExpanded
+                    ? Icons.keyboard_arrow_down
+                    : Icons.keyboard_arrow_up,
                 color: AppGreyColors.white,
                 size: 18,
               ),
@@ -271,10 +315,12 @@ class _DemoScanPickerState extends State<DemoScanPicker> {
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Text(
-                'Visage Démo (Vidéo)',
-                style: AppTypography.bodyMBold.copyWith(
-                  color: AppGreyColors.white,
+              Expanded(
+                child: Text(
+                  'Demo Face (Video)',
+                  style: AppTypography.bodyMBold.copyWith(
+                    color: AppGreyColors.white,
+                  ),
                 ),
               ),
               GestureDetector(
@@ -292,7 +338,7 @@ class _DemoScanPickerState extends State<DemoScanPicker> {
           ),
           const SizedBox(height: 6),
           Text(
-            'Sélectionnez une photo pour lancer le scan sans votre caméra :',
+            'Select a preset photo to test scanning without camera:',
             style: AppTypography.bodyXsRegular.copyWith(
               color: AppGreyColors.shade400,
             ),
@@ -306,7 +352,7 @@ class _DemoScanPickerState extends State<DemoScanPicker> {
               padding: const EdgeInsets.only(bottom: 8),
               child: Semantics(
                 button: true,
-                label: 'Sélectionner et scanner ${item.label} (${item.description})',
+                label: 'Select and scan ${item.label} (${item.description})',
                 child: InkWell(
                   onTap: () {
                     setState(() => _selectedIndex = index);
@@ -340,6 +386,8 @@ class _DemoScanPickerState extends State<DemoScanPicker> {
                             child: Image.asset(
                               item.assetPath,
                               fit: BoxFit.cover,
+                              errorBuilder: (context, error, stackTrace) =>
+                                  const SizedBox.shrink(),
                             ),
                           ),
                         ),

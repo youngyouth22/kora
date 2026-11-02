@@ -145,21 +145,26 @@ class ImagePreprocessorDataSourceImpl implements ImagePreprocessorDataSource {
           height: desiredCropHeight,
         );
       }
-    } else if (rawH > rawW && (rawW / rawH) > 0.58) {
+    } else if (rawW / rawH > 0.65) {
       // Fallback if ML Kit bounding box not available:
-      // The camera sensor (3:4) is wider than the phone screen preview (9:16 - 9:19.5).
-      // Crop horizontal sides to match the portrait preview area framed by the user.
-      final targetW = (rawH * (9 / 16)).round();
-      if (targetW < rawW) {
-        final cropX = ((rawW - targetW) / 2).round();
-        oriented = img.copyCrop(
-          oriented,
-          x: cropX,
-          y: 0,
-          width: targetW,
-          height: rawH,
-        );
-      }
+      // When a selfie or portrait photo has face framing where ML Kit detector
+      // is unavailable (e.g. simulator or headless), crop to 3:4 portrait
+      // focusing on the upper-center ~65% width to ensure face occupies >= 60%
+      // of the frame.
+      final targetW = (rawW * 0.65).round();
+      final targetH = math.min((targetW * (4 / 3)).round(), rawH);
+      final cropX = ((rawW - targetW) / 2).round().clamp(0, rawW - targetW);
+      final cropY = (rawH * 0.46 - targetH * 0.45).round().clamp(
+        0,
+        rawH - targetH,
+      );
+      oriented = img.copyCrop(
+        oriented,
+        x: cropX,
+        y: cropY,
+        width: targetW,
+        height: targetH,
+      );
     }
 
     // 3. Determine dimensions for YouCam HD specifications

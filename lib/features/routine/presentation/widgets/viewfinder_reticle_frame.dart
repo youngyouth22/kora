@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:kora/common/app_colors.dart';
+import 'package:kora/common/image_resources.dart';
 
 /// Camera viewfinder reticle frame with 4 L-shaped corner brackets.
 class ViewfinderReticleFrame extends StatelessWidget {
@@ -44,9 +45,13 @@ class ViewfinderReticleFrame extends StatelessWidget {
             padding: EdgeInsets.all(strokeWidth + 8),
             child:
                 child ??
-                const Placeholder(
-                  strokeWidth: 1.5,
-                  color: AppColors.grey500,
+                Image.asset(
+                  ImageResources.ceraveProduct,
+                  fit: BoxFit.contain,
+                  errorBuilder: (_, _, _) => const Placeholder(
+                    strokeWidth: 1.5,
+                    color: AppColors.grey500,
+                  ),
                 ),
           ),
           Positioned.fill(

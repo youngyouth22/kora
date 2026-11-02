@@ -33,31 +33,32 @@ void main() {
   testWidgets(
     'renders KORA branding and circular loading indicator with status',
     (tester) async {
-    final repository = FakeSplashRepository();
-    final useCase = BootstrapAppUseCase(repository);
-    final bloc = SplashBloc(bootstrapApp: useCase);
-    final sessionState = AppSessionState();
+      final repository = FakeSplashRepository();
+      final useCase = BootstrapAppUseCase(repository);
+      final bloc = SplashBloc(bootstrapApp: useCase);
+      final sessionState = AppSessionState();
 
-    await tester.pumpWidget(
-      MaterialApp(
-        home: SplashScreen(
-          sessionState: sessionState,
-          bloc: bloc,
+      await tester.pumpWidget(
+        MaterialApp(
+          home: SplashScreen(
+            sessionState: sessionState,
+            bloc: bloc,
+          ),
         ),
-      ),
-    );
+      );
 
-    expect(find.text('KORA'), findsAtLeastNWidgets(1));
-    expect(find.text('Initialisation de Kora...'), findsOneWidget);
-    expect(
-      find.bySemanticsLabel(
-        'Kora Logo avec indicateur de chargement circulaire',
-      ),
-      findsOneWidget,
-    );
+      expect(find.text('KORA'), findsAtLeastNWidgets(1));
+      expect(find.text('Initialisation de Kora...'), findsOneWidget);
+      expect(
+        find.bySemanticsLabel(
+          'Kora Logo avec indicateur de chargement circulaire',
+        ),
+        findsOneWidget,
+      );
 
-    await tester.pump();
-  });
+      await tester.pump();
+    },
+  );
 
   testWidgets('triggers sessionState.completeInitialization on success', (
     tester,

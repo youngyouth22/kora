@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:kora/common/app_colors.dart';
+import 'package:kora/common/image_resources.dart';
 
 /// Product card preview displayed in step 2 of the product scan tutorial,
 /// featuring a rounded container with placeholder image and a mint accent bar.
@@ -44,9 +45,16 @@ class ProductCardPreview extends StatelessWidget {
           padding: const EdgeInsets.all(20),
           child:
               child ??
-              const Placeholder(
-                strokeWidth: 1.5,
-                color: AppColors.primary400,
+              ClipRRect(
+                borderRadius: BorderRadius.circular(16),
+                child: Image.asset(
+                  ImageResources.ceraveProductBg,
+                  fit: BoxFit.cover,
+                  errorBuilder: (_, _, _) => const Placeholder(
+                    strokeWidth: 1.5,
+                    color: AppColors.primary400,
+                  ),
+                ),
               ),
         ),
         const SizedBox(height: 8),
