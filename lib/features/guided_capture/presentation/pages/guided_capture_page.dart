@@ -21,6 +21,7 @@ import 'package:kora/features/guided_capture/presentation/widgets/bottom_guidanc
 import 'package:kora/features/guided_capture/presentation/widgets/camera_unavailable_view.dart';
 import 'package:kora/features/guided_capture/presentation/widgets/capture_oval_guide.dart';
 import 'package:kora/features/guided_capture/presentation/widgets/capture_tips_sheet.dart';
+import 'package:kora/features/guided_capture/presentation/widgets/demo_scan_picker.dart';
 import 'package:kora/features/guided_capture/presentation/widgets/top_bar_controls.dart';
 
 /// Main screen hosting live guided capture with front camera and face
@@ -251,53 +252,72 @@ class _GuidedCaptureViewState extends State<_GuidedCaptureView>
             current.status == CaptureStatus.readyToTakePhoto,
         listener: (context, state) => unawaited(_executeHighResCapture()),
         builder: (context, state) {
+          Widget mainContent;
           if (_hasCameraError) {
-            return CameraUnavailableView(
+            mainContent = CameraUnavailableView(
               onRetry: () => unawaited(_initCamera()),
               onClose: () => _handleClose(context),
             );
-          }
-          if (controller == null || !controller.value.isInitialized) {
-            return const Center(
+          } else if (controller == null || !controller.value.isInitialized) {
+            mainContent = const Center(
               child: CircularProgressIndicator(color: AppGreyColors.white),
+            );
+          } else {
+            mainContent = Stack(
+              fit: StackFit.expand,
+              children: [
+                _FullScreenCameraPreview(controller: controller),
+                if (!_isTutorialVisible)
+                  CaptureOvalGuide(
+                    hasFace: state.hasFace,
+                    alignmentScore: state.alignmentScore,
+                    faceOffsetFromCenter: state.faceOffsetFromCenter,
+                    isAllValid: state.isAllQualityMet,
+                  ),
+                SafeArea(
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      TopBarControls(
+                        isLightOk: state.isLightOk,
+                        isAllValid: state.isAllQualityMet,
+                        onCancel: () => _handleClose(context),
+                        onHelp: () => unawaited(_showTutorialSheet()),
+                      ),
+                      if (!_isTutorialVisible)
+                        BottomGuidancePanel(
+                          message: state.guidanceMessage,
+                          isPositionOk: state.isPositionOk,
+                          isLightOk: state.isLightOk,
+                          isAngleOk: state.isAngleOk,
+                          canManualCapture: state.isAllQualityMet,
+                          onManualCapture: () => context
+                              .read<GuidedCaptureBloc>()
+                              .add(const TriggerPhotoCaptureEvent()),
+                        ),
+                    ],
+                  ),
+                ),
+              ],
             );
           }
 
           return Stack(
             fit: StackFit.expand,
             children: [
-              _FullScreenCameraPreview(controller: controller),
-              if (!_isTutorialVisible)
-                CaptureOvalGuide(
-                  hasFace: state.hasFace,
-                  alignmentScore: state.alignmentScore,
-                  faceOffsetFromCenter: state.faceOffsetFromCenter,
-                  isAllValid: state.isAllQualityMet,
-                ),
-              SafeArea(
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    TopBarControls(
-                      isLightOk: state.isLightOk,
-                      isAllValid: state.isAllQualityMet,
-                      onCancel: () => _handleClose(context),
-                      onHelp: () => unawaited(_showTutorialSheet()),
+              mainContent,
+              if (kEnableDemoScanPicker && !_isTutorialVisible)
+                Positioned(
+                  left: 16,
+                  bottom: 24,
+                  child: SafeArea(
+                    child: DemoScanPicker(
+                      onCaptureDemoPhoto: (photo) async {
+                        await widget.onCaptureSuccess(photo);
+                      },
                     ),
-                    if (!_isTutorialVisible)
-                      BottomGuidancePanel(
-                        message: state.guidanceMessage,
-                        isPositionOk: state.isPositionOk,
-                        isLightOk: state.isLightOk,
-                        isAngleOk: state.isAngleOk,
-                        canManualCapture: state.isAllQualityMet,
-                        onManualCapture: () => context
-                            .read<GuidedCaptureBloc>()
-                            .add(const TriggerPhotoCaptureEvent()),
-                      ),
-                  ],
+                  ),
                 ),
-              ),
             ],
           );
         },

@@ -361,35 +361,35 @@ class _ProfilePageState extends State<ProfilePage> {
                   color: AppGreyColors.shade1050,
                 ),
               ),
-              if (!_isAuthenticated)
-                Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 10,
-                    vertical: 4,
-                  ),
-                  decoration: BoxDecoration(
-                    color: AppColors.secondary50,
-                    borderRadius: BorderRadius.circular(12),
-                    border: Border.all(color: AppColors.secondary200),
-                  ),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      const Icon(
-                        Icons.person_outline_rounded,
-                        size: 14,
-                        color: AppColors.secondary700,
-                      ),
-                      const SizedBox(width: 4),
-                      Text(
-                        'Guest mode',
-                        style: AppTypography.bodyXsMedium.copyWith(
-                          color: AppColors.secondary800,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
+              // if (!_isAuthenticated)
+              //   Container(
+              //     padding: const EdgeInsets.symmetric(
+              //       horizontal: 10,
+              //       vertical: 4,
+              //     ),
+              //     decoration: BoxDecoration(
+              //       color: AppColors.secondary50,
+              //       borderRadius: BorderRadius.circular(12),
+              //       border: Border.all(color: AppColors.secondary200),
+              //     ),
+              //     child: Row(
+              //       mainAxisSize: MainAxisSize.min,
+              //       children: [
+              //         const Icon(
+              //           Icons.person_outline_rounded,
+              //           size: 14,
+              //           color: AppColors.secondary700,
+              //         ),
+              //         const SizedBox(width: 4),
+              //         Text(
+              //           'Guest mode',
+              //           style: AppTypography.bodyXsMedium.copyWith(
+              //             color: AppColors.secondary800,
+              //           ),
+              //         ),
+              //       ],
+              //     ),
+              //   ),
               Text(
                 _userEmail ?? 'Track your progress and \nbecome your best skin',
                 textAlign: TextAlign.center,
