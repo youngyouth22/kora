@@ -49,11 +49,12 @@ class _MockRepo implements AuthRepository {
 class _FailingGoogleRepo extends _MockRepo {
   @override
   ResultFuture<UserAccount> linkWithGoogle() async => const Left(
-        AuthFailure(
-          message:
-              'Google Sign-In error: [28444] Developer console is not set up correctly.',
-        ),
-      );
+    AuthFailure(
+      message:
+          'Google Sign-In error: [28444] '
+          'Developer console is not set up correctly.',
+    ),
+  );
 }
 
 void main() {
@@ -99,7 +100,8 @@ void main() {
   );
 
   testWidgets(
-    'shows popup when Google Sign-In fails with developer console error and allows continuing as guest',
+    'shows popup when Google Sign-In fails with developer console error '
+    'and allows continuing as guest',
     (tester) async {
       final failingRepo = _FailingGoogleRepo();
       final failingBloc = AuthBloc(
@@ -133,8 +135,6 @@ void main() {
 
       await tester.tap(find.text('Continue as Guest'));
       await tester.pumpAndSettle();
-
-      await failingBloc.close();
     },
   );
 }

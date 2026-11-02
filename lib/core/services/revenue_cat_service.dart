@@ -52,6 +52,8 @@ abstract final class RevenueCatService {
   /// [SubscriptionConstants.entitlementKoraPro].
   static Future<bool> isKoraProActive() async {
     try {
+      final isConfigured = await Purchases.isConfigured;
+      if (!isConfigured) return false;
       final customerInfo = await Purchases.getCustomerInfo();
       final entitlement = customerInfo
           .entitlements

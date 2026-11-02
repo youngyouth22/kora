@@ -24,11 +24,9 @@ void main() {
         );
         expect(find.text('Face'), findsOneWidget);
         expect(find.text('See the condition of your skin'), findsOneWidget);
-        expect(find.text('Cosmetics & Food'), findsOneWidget);
+        expect(find.text('Cosmetics'), findsOneWidget);
         expect(
-          find.text(
-            'See if a skincare product, food, beverage, or supplement fits you',
-          ),
+          find.text('See if a skincare product fits you'),
           findsOneWidget,
         );
         expect(find.byType(ScanOptionCard), findsNWidgets(2));
@@ -71,7 +69,7 @@ void main() {
     });
 
     testWidgets(
-      'tapping Cosmetics & Food invokes onProductScanSelected callback',
+      'tapping Cosmetics invokes onProductScanSelected callback',
       (tester) async {
         var productSelected = false;
 
@@ -94,7 +92,7 @@ void main() {
         await tester.tap(find.text('Open'));
         await tester.pumpAndSettle();
 
-        await tester.tap(find.text('Cosmetics & Food'));
+        await tester.tap(find.text('Cosmetics'));
         await tester.pumpAndSettle();
 
         expect(productSelected, isTrue);

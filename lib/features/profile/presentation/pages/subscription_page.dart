@@ -36,7 +36,13 @@ class _SubscriptionPageState extends State<SubscriptionPage> {
       pro = GetIt.instance<AppSessionState>().hasActiveSubscription;
     }
     if (!pro) {
-      pro = await RevenueCatService.isKoraProActive();
+      try {
+        pro = await RevenueCatService.isKoraProActive().timeout(
+          const Duration(milliseconds: 500),
+        );
+      } on Object {
+        pro = false;
+      }
     }
     if (mounted) {
       setState(() {

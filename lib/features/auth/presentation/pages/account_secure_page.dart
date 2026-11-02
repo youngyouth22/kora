@@ -94,7 +94,8 @@ class AccountSecurePage extends StatelessWidget {
         } else if (state.status == AuthStatus.failure &&
             state.errorMessage != null) {
           final error = state.errorMessage!;
-          final isGoogleConsoleError = error.contains('28444') ||
+          final isGoogleConsoleError =
+              error.contains('28444') ||
               error.contains('Developer console') ||
               error.contains('clientConfigurationError') ||
               error.contains('Google Sign-In') ||
@@ -261,76 +262,79 @@ class AccountSecurePage extends StatelessWidget {
   }
 
   void _showGoogleSignInUnavailableDialog(BuildContext context) {
-    showDialog<void>(
-      context: context,
-      barrierDismissible: false,
-      builder: (dialogContext) {
-        return AlertDialog(
-          backgroundColor: AppGreyColors.white,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(20),
-            side: const BorderSide(color: AppGreyColors.shade300),
-          ),
-          icon: Container(
-            width: 48,
-            height: 48,
-            decoration: const BoxDecoration(
-              color: AppPrimaryColors.shade100,
-              shape: BoxShape.circle,
+    unawaited(
+      showDialog<void>(
+        context: context,
+        barrierDismissible: false,
+        builder: (dialogContext) {
+          return AlertDialog(
+            backgroundColor: AppGreyColors.white,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(20),
+              side: const BorderSide(color: AppGreyColors.shade300),
             ),
-            child: const Icon(
-              Icons.info_outline_rounded,
-              color: AppPrimaryColors.shade700,
-              size: 28,
+            icon: Container(
+              width: 48,
+              height: 48,
+              decoration: const BoxDecoration(
+                color: AppPrimaryColors.shade100,
+                shape: BoxShape.circle,
+              ),
+              child: const Icon(
+                Icons.info_outline_rounded,
+                color: AppPrimaryColors.shade700,
+                size: 28,
+              ),
             ),
-          ),
-          title: Text(
-            'Google Sign-In Unavailable',
-            textAlign: TextAlign.center,
-            style: AppTypography.h5Bold.copyWith(
-              color: AppGreyColors.shade1050,
+            title: Text(
+              'Google Sign-In Unavailable',
+              textAlign: TextAlign.center,
+              style: AppTypography.h5Bold.copyWith(
+                color: AppGreyColors.shade1050,
+              ),
             ),
-          ),
-          content: Text(
-            'Google Sign-In is not currently available in this test environment. '
-            'You can continue using the full app in guest mode without any interruption.',
-            textAlign: TextAlign.center,
-            style: AppTypography.bodyMRegular.copyWith(
-              color: AppGreyColors.shade700,
-              height: 1.4,
+            content: Text(
+              'Google Sign-In is not currently available in this '
+              'test environment. You can continue using the full app in '
+              'guest mode without any interruption.',
+              textAlign: TextAlign.center,
+              style: AppTypography.bodyMRegular.copyWith(
+                color: AppGreyColors.shade700,
+                height: 1.4,
+              ),
             ),
-          ),
-          actionsPadding: const EdgeInsets.fromLTRB(20, 0, 20, 20),
-          actions: [
-            Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                PrimaryButton(
-                  text: 'Continue as Guest',
-                  height: 48,
-                  onPressed: () {
-                    Navigator.of(dialogContext).pop();
-                    context.read<AuthBloc>().add(
-                          const AuthSkipRequested(),
-                        );
-                  },
-                ),
-                const SizedBox(height: 8),
-                TextButton(
-                  onPressed: () => Navigator.of(dialogContext).pop(),
-                  child: Text(
-                    'Cancel',
-                    style: AppTypography.bodyMRegular.copyWith(
-                      color: AppGreyColors.shade600,
-                      fontWeight: FontWeight.w600,
+            actionsPadding: const EdgeInsets.fromLTRB(20, 0, 20, 20),
+            actions: [
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  PrimaryButton(
+                    text: 'Continue as Guest',
+                    height: 48,
+                    onPressed: () {
+                      Navigator.of(dialogContext).pop();
+                      context.read<AuthBloc>().add(
+                        const AuthSkipRequested(),
+                      );
+                    },
+                  ),
+                  const SizedBox(height: 8),
+                  TextButton(
+                    onPressed: () => Navigator.of(dialogContext).pop(),
+                    child: Text(
+                      'Cancel',
+                      style: AppTypography.bodyMRegular.copyWith(
+                        color: AppGreyColors.shade600,
+                        fontWeight: FontWeight.w600,
+                      ),
                     ),
                   ),
-                ),
-              ],
-            ),
-          ],
-        );
-      },
+                ],
+              ),
+            ],
+          );
+        },
+      ),
     );
   }
 }

@@ -190,6 +190,8 @@ void main() {
         expect(find.byType(ProfilePage), findsOneWidget);
 
         // Tap on Subscription
+        await tester.ensureVisible(find.text('Subscription'));
+        await tester.pumpAndSettle();
         await tester.tap(find.text('Subscription'));
         await tester.pumpAndSettle();
 
