@@ -51,6 +51,8 @@ import 'package:kora/features/profile/presentation/pages/help_page.dart';
 import 'package:kora/features/profile/presentation/pages/notifications_page.dart';
 import 'package:kora/features/profile/presentation/pages/privacy_page.dart';
 import 'package:kora/features/profile/presentation/pages/profile_page.dart';
+import 'package:kora/features/profile/presentation/pages/routine_preferences_page.dart';
+import 'package:kora/features/profile/presentation/pages/skin_profile_page.dart';
 import 'package:kora/features/profile/presentation/pages/subscription_page.dart';
 import 'package:kora/features/progress/presentation/pages/compare_scans_page.dart';
 import 'package:kora/features/progress/presentation/pages/concern_detail_page.dart';
@@ -694,9 +696,8 @@ class AppRouter {
                   pageBuilder: (context, state) => buildKoraTransitionPage(
                     key: state.pageKey,
                     name: state.name,
-                    child: const RouteScreenPlaceholder(
-                      title: 'Skin Checks',
-                      routePath: AppRoutes.skinCheck,
+                    child: ScanGuideScreen(
+                      sessionState: _sessionState,
                     ),
                   ),
                 ),
@@ -772,6 +773,26 @@ class AppRouter {
                         key: state.pageKey,
                         name: state.name,
                         child: const HelpPage(),
+                      ),
+                    ),
+                    GoRoute(
+                      path: 'routine-preferences',
+                      name: AppRoutes.profileRoutinePreferencesName,
+                      parentNavigatorKey: _rootNavigatorKey,
+                      pageBuilder: (context, state) => buildKoraTransitionPage(
+                        key: state.pageKey,
+                        name: state.name,
+                        child: const RoutinePreferencesPage(),
+                      ),
+                    ),
+                    GoRoute(
+                      path: 'skin-profile',
+                      name: AppRoutes.profileSkinProfileName,
+                      parentNavigatorKey: _rootNavigatorKey,
+                      pageBuilder: (context, state) => buildKoraTransitionPage(
+                        key: state.pageKey,
+                        name: state.name,
+                        child: const SkinProfilePage(),
                       ),
                     ),
                   ],

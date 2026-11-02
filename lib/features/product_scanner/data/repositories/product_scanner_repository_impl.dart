@@ -1,5 +1,6 @@
 import 'package:camera/camera.dart';
 import 'package:get_it/get_it.dart';
+import 'package:kora/core/utils/active_user_resolver.dart';
 import 'package:kora/features/onboarding/domain/entities/user_skin_profile.dart';
 import 'package:kora/features/onboarding/domain/repositories/user_profile_repository.dart';
 import 'package:kora/features/product_scanner/data/datasources/mlkit_barcode_datasource.dart';
@@ -41,7 +42,8 @@ class ProductScannerRepositoryImpl implements ProductScannerRepository {
             : null);
     if (repo == null) return null;
     try {
-      final res = await repo.getProfile(id: 'local-user');
+      final userId = await ActiveUserResolver.resolveUserId();
+      final res = await repo.getProfile(id: userId);
       final resolved = res.fold((_) => null, (profile) => profile);
       return resolved;
     } on Object {

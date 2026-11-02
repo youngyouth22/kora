@@ -85,4 +85,9 @@ class SyncMutationDao {
       ..addColumns([countExp]);
     return query.watchSingle().map((row) => row.read(countExp) ?? 0);
   }
+
+  /// Clears all pending mutations from the outbox (used on account reset).
+  Future<int> clearAll() {
+    return _db.delete(_db.syncMutationsTable).go();
+  }
 }

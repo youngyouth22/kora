@@ -1,13 +1,23 @@
 import 'dart:async';
+import 'dart:io';
 
 import 'package:flutter/material.dart';
+import 'package:get_it/get_it.dart';
 import 'package:go_router/go_router.dart';
 import 'package:kora/common/app_colors.dart';
 import 'package:kora/common/app_typography.dart';
 import 'package:kora/common/widgets/kora_card.dart';
+import 'package:kora/core/database/daos/experiment_dao.dart';
+import 'package:kora/core/database/daos/profile_dao.dart';
+import 'package:kora/core/database/daos/routine_dao.dart';
+import 'package:kora/core/database/daos/scan_dao.dart';
+import 'package:kora/core/database/daos/sync_mutation_dao.dart';
 import 'package:kora/core/router/app_routes.dart';
-
+import 'package:kora/core/router/app_session_state.dart';
+import 'package:kora/core/services/app_preferences_service.dart';
+import 'package:kora/core/utils/active_user_resolver.dart';
 import 'package:kora/features/profile/presentation/widgets/setting_section.dart';
+import 'package:supabase/supabase.dart';
 
 /// User privacy, biometric consent and data deletion screen (C21 in blueprint).
 class PrivacyPage extends StatefulWidget {
@@ -55,12 +65,34 @@ class _PrivacyPageState extends State<PrivacyPage> {
                 ),
               ),
               TextButton(
-                onPressed: () {
+                onPressed: () async {
                   Navigator.of(dialogContext).pop();
+                  final sl = GetIt.instance;
+                  final userId = await ActiveUserResolver.resolveUserId();
+
+                  if (sl.isRegistered<ScanDao>()) {
+                    final scanDao = sl<ScanDao>();
+                    final scans = await scanDao.getScansForUser(userId);
+                    for (final scan in scans) {
+                      if (scan.photoPath != null &&
+                          scan.photoPath!.isNotEmpty) {
+                        try {
+                          final file = File(scan.photoPath!);
+                          if (file.existsSync()) {
+                            await file.delete();
+                          }
+                        } on Object catch (_) {}
+                      }
+                    }
+                    await scanDao.clearAllPhotosForUser(userId);
+                  }
+
+                  if (!mounted) return;
                   ScaffoldMessenger.of(context).showSnackBar(
                     SnackBar(
                       content: Text(
-                        'All photos deleted. Scores kept.',
+                        'All photos deleted from device. '
+                        'Numerical scores kept.',
                         style: AppTypography.bodySMedium.copyWith(
                           color: AppColors.grey50,
                         ),
@@ -117,8 +149,80 @@ class _PrivacyPageState extends State<PrivacyPage> {
                 ),
               ),
               TextButton(
-                onPressed: () {
+                onPressed: () async {
                   Navigator.of(dialogContext).pop();
+                  final sl = GetIt.instance;
+                  final userId = await ActiveUserResolver.resolveUserId();
+
+                  // 1. Delete all SQLite tables for user
+                  if (sl.isRegistered<ScanDao>()) {
+                    final scanDao = sl<ScanDao>();
+                    final scans = await scanDao.getScansForUser(userId);
+                    for (final scan in scans) {
+                      if (scan.photoPath != null &&
+                          scan.photoPath!.isNotEmpty) {
+                        try {
+                          final file = File(scan.photoPath!);
+                          if (file.existsSync()) {
+                            await file.delete();
+                          }
+                        } on Object catch (_) {}
+                      }
+                    }
+                    await scanDao.deleteAllScansForUser(userId);
+                  }
+
+                  if (sl.isRegistered<RoutineDao>()) {
+                    await sl<RoutineDao>().deleteAllRoutineForUser(userId);
+                  }
+
+                  if (sl.isRegistered<ExperimentDao>()) {
+                    await sl<ExperimentDao>().deleteAllExperimentsForUser(
+                      userId,
+                    );
+                  }
+
+                  if (sl.isRegistered<ProfileDao>()) {
+                    await sl<ProfileDao>().deleteAllProfiles();
+                  }
+
+                  if (sl.isRegistered<SyncMutationDao>()) {
+                    await sl<SyncMutationDao>().clearAll();
+                  }
+
+                  // 2. Clear SharedPreferences
+                  if (sl.isRegistered<AppPreferencesService>()) {
+                    await sl<AppPreferencesService>().clear();
+                  }
+
+                  // 3. Supabase Auth Sign out
+                  if (sl.isRegistered<SupabaseClient>()) {
+                    try {
+                      await sl<SupabaseClient>().auth.signOut();
+                    } on Object catch (_) {}
+                  }
+
+                  // 4. Reset Session State
+                  if (sl.isRegistered<AppSessionState>()) {
+                    sl<AppSessionState>()
+                      ..reset()
+                      ..completeInitialization(
+                        isOnboardingCompleted: false,
+                      );
+                  }
+
+                  if (!mounted) return;
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text(
+                        'Account and all associated data permanently erased.',
+                        style: AppTypography.bodySMedium.copyWith(
+                          color: AppColors.grey50,
+                        ),
+                      ),
+                      backgroundColor: AppColors.grey1000,
+                    ),
+                  );
                   context.go(AppRoutes.onboardingWelcome);
                 },
                 child: Text(

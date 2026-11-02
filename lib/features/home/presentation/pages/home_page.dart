@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_svg/svg.dart';
 import 'package:get_it/get_it.dart';
 import 'package:go_router/go_router.dart';
@@ -15,29 +16,42 @@ import 'package:kora/common/widgets/primary_button.dart';
 import 'package:kora/core/router/app_routes.dart';
 import 'package:kora/core/router/app_session_state.dart';
 import 'package:kora/features/coach/presentation/widgets/coach_bottom_sheet.dart';
+import 'package:kora/features/home/domain/entities/home_dashboard_data.dart';
+import 'package:kora/features/home/home_injection.dart';
+import 'package:kora/features/home/presentation/bloc/home_bloc.dart';
+import 'package:kora/features/home/presentation/bloc/home_event.dart';
+import 'package:kora/features/home/presentation/bloc/home_state.dart';
 import 'package:kora/features/home/presentation/widgets/day_streak_bar.dart';
+import 'package:kora/features/home/presentation/widgets/streak_detail_bottom_sheet.dart';
 
-/// Main home dashboard screen conforming to C01 & S01 specifications.
-class HomePage extends StatefulWidget {
+/// Main home dashboard screen conforming to C01 & S01 specifications,
+/// backed by [HomeBloc] and live SQLite DAOs.
+class HomePage extends StatelessWidget {
   /// Creates a [HomePage].
   const HomePage({super.key});
 
   @override
-  State<HomePage> createState() => _HomePageState();
+  Widget build(BuildContext context) {
+    final sl = GetIt.instance;
+    if (!sl.isRegistered<HomeBloc>()) {
+      initHomeInjection(sl);
+    }
+
+    return BlocProvider<HomeBloc>(
+      create: (_) => sl<HomeBloc>()..add(const HomeStarted()),
+      child: const _HomeView(),
+    );
+  }
 }
 
-class _HomePageState extends State<HomePage> {
-  // Mock daily routine tasks states
-  bool _morningRoutineDone = true;
-  bool _eveningRoutineDone = false;
-  bool _skinCheckinDone = false;
-  bool _dailyTipRead = true;
+class _HomeView extends StatelessWidget {
+  const _HomeView();
 
-  void _showSkinCheckinDialog() {
+  void _showSkinCheckinDialog(BuildContext context) {
     unawaited(
       showDialog<void>(
         context: context,
-        builder: (context) {
+        builder: (dialogContext) {
           return AlertDialog(
             backgroundColor: AppColors.grey50,
             shape: RoundedRectangleBorder(
@@ -55,8 +69,10 @@ class _HomePageState extends State<HomePage> {
                   label: 'Calm & Balanced',
                   icon: Icons.sentiment_satisfied_alt_rounded,
                   onTap: () {
-                    setState(() => _skinCheckinDone = true);
-                    Navigator.of(context).pop();
+                    context.read<HomeBloc>().add(
+                      const HomeSkinCheckinSubmitted(3),
+                    );
+                    Navigator.of(dialogContext).pop();
                   },
                 ),
                 const SizedBox(height: 8),
@@ -64,8 +80,10 @@ class _HomePageState extends State<HomePage> {
                   label: 'Slightly Irritated / Dry',
                   icon: Icons.sentiment_neutral_rounded,
                   onTap: () {
-                    setState(() => _skinCheckinDone = true);
-                    Navigator.of(context).pop();
+                    context.read<HomeBloc>().add(
+                      const HomeSkinCheckinSubmitted(2),
+                    );
+                    Navigator.of(dialogContext).pop();
                   },
                 ),
                 const SizedBox(height: 8),
@@ -73,8 +91,10 @@ class _HomePageState extends State<HomePage> {
                   label: 'Red / Broken Out',
                   icon: Icons.sentiment_dissatisfied_rounded,
                   onTap: () {
-                    setState(() => _skinCheckinDone = true);
-                    Navigator.of(context).pop();
+                    context.read<HomeBloc>().add(
+                      const HomeSkinCheckinSubmitted(1),
+                    );
+                    Navigator.of(dialogContext).pop();
                   },
                 ),
               ],
@@ -85,6 +105,23 @@ class _HomePageState extends State<HomePage> {
     );
   }
 
+  String _timeGreeting() {
+    final hour = DateTime.now().hour;
+    if (hour >= 5 && hour < 12) {
+      return 'Good morning, \n ';
+    } else if (hour >= 12 && hour < 18) {
+      return 'Good afternoon, \n ';
+    } else {
+      return 'Good evening, \n ';
+    }
+  }
+
+  List<StreakDay> _buildStreakDays(HomeDashboardData? data) {
+    return DayStreakBar.buildCurrentWeekDays(
+      completedDays: data?.streakDaysCompleted,
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -92,57 +129,71 @@ class _HomePageState extends State<HomePage> {
       floatingActionButton: _buildMascotFab(context),
       floatingActionButtonLocation: FloatingActionButtonLocation.endFloat,
       body: SafeArea(
-        child: RefreshIndicator(
-          color: AppColors.primary700,
-          onRefresh: () async {
-            await Future<void>.delayed(const Duration(milliseconds: 300));
+        child: BlocBuilder<HomeBloc, HomeState>(
+          builder: (context, state) {
+            final data = state.data;
+
+            return RefreshIndicator(
+              color: AppColors.primary700,
+              onRefresh: () async {
+                final completer = Completer<void>();
+                context.read<HomeBloc>().add(const HomeRefreshed());
+                unawaited(
+                  Future<void>.delayed(
+                    const Duration(milliseconds: 400),
+                  ).then((_) => completer.complete()),
+                );
+                return completer.future;
+              },
+              child: SingleChildScrollView(
+                physics: const AlwaysScrollableScrollPhysics(),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 20,
+                  vertical: 16,
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    _buildHeader(context, data),
+                    const SizedBox(height: 16),
+                    _buildStreakBar(context, data),
+                    const SizedBox(height: 20),
+                    _buildNextBestActionCard(context, data),
+                    const SizedBox(height: 20),
+                    _buildDailyPlanSection(context, data),
+                    const SizedBox(height: 20),
+                    _buildActiveExperimentCard(context, data),
+                    const SizedBox(height: 20),
+                    _buildTrendSection(context, data),
+                    const SizedBox(height: 32),
+                  ],
+                ),
+              ),
+            );
           },
-          child: SingleChildScrollView(
-            physics: const AlwaysScrollableScrollPhysics(),
-            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                _buildHeader(context),
-                const SizedBox(height: 16),
-                const DayStreakBar(),
-                const SizedBox(height: 20),
-                _buildNextBestActionCard(context),
-                const SizedBox(height: 20),
-                _buildDailyPlanSection(),
-                const SizedBox(height: 20),
-                _buildActiveExperimentCard(context),
-                const SizedBox(height: 20),
-                _buildTrendSection(context),
-                const SizedBox(height: 20),
-                _buildEducationalSection(context),
-                const SizedBox(height: 32),
-              ],
-            ),
-          ),
         ),
       ),
     );
   }
 
-  Widget _buildHeader(BuildContext context) {
+  Widget _buildHeader(BuildContext context, HomeDashboardData? data) {
+    final userName = data?.userName ?? 'there';
+
     return Row(
       spacing: 20,
       children: [
         Expanded(
-          child: RichText(
-            text: TextSpan(
+          child: Text.rich(
+            TextSpan(
               style: AppTypography.h3Medium.copyWith(
                 color: AppGreyColors.shade1050,
                 height: 1.36,
                 overflow: TextOverflow.ellipsis,
               ),
               children: [
-                const TextSpan(
-                  text: 'Good morning, \n ',
-                ),
+                TextSpan(text: _timeGreeting()),
                 TextSpan(
-                  text: 'Amina',
+                  text: userName,
                   style: AppTypography.h3Medium.copyWith(
                     color: AppBadgeColors.valueIcon,
                   ),
@@ -151,20 +202,35 @@ class _HomePageState extends State<HomePage> {
             ),
           ),
         ),
-        Container(
-          height: 48,
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-          decoration: BoxDecoration(
-            shape: BoxShape.circle,
-            color: AppGreyColors.white,
-            border: Border.all(color: AppColors.grey300),
-          ),
-          child: SvgPicture.asset(
-            ImageResources.flameIcon,
-            width: 24,
-            colorFilter: const ColorFilter.mode(
-              AppColors.primary600,
-              BlendMode.srcIn,
+        InkWell(
+          onTap: () {
+            if (data != null) {
+              unawaited(
+                StreakDetailBottomSheet.show(
+                  context,
+                  currentStreak: data.currentStreak,
+                  longestStreak: data.longestStreak,
+                  weeklyScanStreak: data.weeklyScanStreak,
+                ),
+              );
+            }
+          },
+          borderRadius: BorderRadius.circular(100),
+          child: Container(
+            height: 48,
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              color: AppGreyColors.white,
+              border: Border.all(color: AppColors.grey300),
+            ),
+            child: SvgPicture.asset(
+              ImageResources.flameIcon,
+              width: 24,
+              colorFilter: const ColorFilter.mode(
+                AppColors.primary600,
+                BlendMode.srcIn,
+              ),
             ),
           ),
         ),
@@ -172,7 +238,52 @@ class _HomePageState extends State<HomePage> {
     );
   }
 
-  Widget _buildNextBestActionCard(BuildContext context) {
+  Widget _buildStreakBar(BuildContext context, HomeDashboardData? data) {
+    return DayStreakBar(
+      days: _buildStreakDays(data),
+      onDayTap: data == null
+          ? null
+          : (_) {
+              unawaited(
+                StreakDetailBottomSheet.show(
+                  context,
+                  currentStreak: data.currentStreak,
+                  longestStreak: data.longestStreak,
+                  weeklyScanStreak: data.weeklyScanStreak,
+                ),
+              );
+            },
+    );
+  }
+
+  Widget _buildNextBestActionCard(
+    BuildContext context,
+    HomeDashboardData? data,
+  ) {
+    final hasScan = data?.hasBaselineScan ?? false;
+    final isDueToday = data?.isScanDueToday ?? false;
+    final daysRemaining = data?.daysUntilNextScan ?? 0;
+    final timingLabel = data?.nextScanDateLabel ?? 'Upcoming scan';
+
+    final badgeLabel = !hasScan
+        ? 'START HERE'
+        : (isDueToday ? 'SCAN READY' : 'UPCOMING SCAN');
+
+    final title = !hasScan
+        ? 'Take your baseline scan'
+        : (isDueToday
+              ? 'Your weekly scan is due today'
+              : 'Next scan in $daysRemaining days');
+
+    final subtitle = !hasScan
+        ? 'Your first scan establishes your calibrated starting point.'
+        : 'Weekly scans provide the most reliable trends. '
+              'Keep the same spot and lighting.';
+
+    final buttonLabel = !hasScan
+        ? 'Start first scan'
+        : (isDueToday ? 'Start weekly scan' : 'Preview scan guide');
+
     return KoraCard(
       backgroundColor: AppColors.primary50,
       borderColor: AppColors.primary200,
@@ -189,7 +300,7 @@ class _HomePageState extends State<HomePage> {
                   borderRadius: BorderRadius.circular(6),
                 ),
                 child: Text(
-                  'UPCOMING SCAN',
+                  badgeLabel,
                   style: AppTypography.bodyXsBold.copyWith(
                     color: AppColors.grey50,
                     letterSpacing: 0.5,
@@ -198,7 +309,7 @@ class _HomePageState extends State<HomePage> {
               ),
               const Spacer(),
               Text(
-                'Sunday at 6 PM',
+                timingLabel,
                 style: AppTypography.bodyXsMedium.copyWith(
                   color: AppColors.primary900,
                 ),
@@ -207,31 +318,32 @@ class _HomePageState extends State<HomePage> {
           ),
           const SizedBox(height: 12),
           Text(
-            'Next scan in 4 days',
+            title,
             style: AppTypography.h5Bold.copyWith(color: AppColors.grey1050),
           ),
           const SizedBox(height: 4),
           Text(
-            'Weekly scans provide the most reliable trends. '
-            'Keep the same spot and lighting.',
+            subtitle,
             style: AppTypography.bodySRegular.copyWith(
               color: AppColors.grey800,
             ),
           ),
           const SizedBox(height: 16),
           PrimaryButton(
-            text: 'Preview scan guide',
+            text: buttonLabel,
             height: 48,
             backgroundColor: AppColors.primary700,
-            onPressed: () {
+            onPressed: () async {
               final session = GetIt.instance.isRegistered<AppSessionState>()
                   ? GetIt.instance<AppSessionState>()
                   : null;
               final hasSeenGuide = session?.hasSeenScanGuide ?? false;
-              if (hasSeenGuide) {
-                unawaited(context.push(AppRoutes.scanCapture));
-              } else {
-                unawaited(context.push(AppRoutes.scanGuide));
+              final route = hasSeenGuide
+                  ? AppRoutes.scanCapture
+                  : AppRoutes.scanGuide;
+              await context.push(route);
+              if (context.mounted) {
+                context.read<HomeBloc>().add(const HomeRefreshed());
               }
             },
           ),
@@ -240,7 +352,16 @@ class _HomePageState extends State<HomePage> {
     );
   }
 
-  Widget _buildDailyPlanSection() {
+  Widget _buildDailyPlanSection(
+    BuildContext context,
+    HomeDashboardData? data,
+  ) {
+    final completedCount = data?.completedDailyTasks ?? 0;
+    final morningDone = data?.morningRoutineDone ?? false;
+    final eveningDone = data?.eveningRoutineDone ?? false;
+    final checkinDone = data?.skinCheckinDone ?? false;
+    final tipDone = data?.dailyTipRead ?? false;
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -252,7 +373,7 @@ class _HomePageState extends State<HomePage> {
               style: AppTypography.h6Bold.copyWith(color: AppColors.grey1050),
             ),
             Text(
-              '2/4 completed',
+              '$completedCount/4 completed',
               style: AppTypography.bodyXsMedium.copyWith(
                 color: AppColors.grey700,
               ),
@@ -266,32 +387,38 @@ class _HomePageState extends State<HomePage> {
             children: [
               _buildTaskTile(
                 title: 'Morning routine',
-                subtitle: 'Cleanse, treat, protect',
-                done: _morningRoutineDone,
-                onChanged: (val) => setState(() => _morningRoutineDone = val),
+                subtitle: morningDone
+                    ? 'Completed for today'
+                    : 'Cleanse, treat, protect',
+                done: morningDone,
+                onTap: () => context.go(AppRoutes.buildRoutinePath('am')),
               ),
               const Divider(height: 1, color: AppColors.grey200),
               _buildTaskTile(
                 title: 'Evening routine',
-                subtitle: 'Cleanse and repair',
-                done: _eveningRoutineDone,
-                onChanged: (val) => setState(() => _eveningRoutineDone = val),
+                subtitle: eveningDone
+                    ? 'Completed for today'
+                    : 'Cleanse and repair',
+                done: eveningDone,
+                onTap: () => context.go(AppRoutes.buildRoutinePath('pm')),
               ),
               const Divider(height: 1, color: AppColors.grey200),
               _buildTaskTile(
                 title: 'Skin check-in',
-                subtitle: _skinCheckinDone
+                subtitle: checkinDone
                     ? 'Completed for today'
                     : '2 taps · keeps your streak',
-                done: _skinCheckinDone,
-                onChanged: (_) => _showSkinCheckinDialog(),
+                done: checkinDone,
+                onTap: () => _showSkinCheckinDialog(context),
               ),
               const Divider(height: 1, color: AppColors.grey200),
               _buildTaskTile(
                 title: 'Today’s skin tip',
                 subtitle: 'Why mineral sunscreen protects sensitive skin',
-                done: _dailyTipRead,
-                onChanged: (val) => setState(() => _dailyTipRead = val),
+                done: tipDone,
+                onTap: () => context.read<HomeBloc>().add(
+                  HomeDailyTipToggled(read: !tipDone),
+                ),
               ),
             ],
           ),
@@ -304,10 +431,10 @@ class _HomePageState extends State<HomePage> {
     required String title,
     required String subtitle,
     required bool done,
-    required ValueChanged<bool> onChanged,
+    required VoidCallback onTap,
   }) {
     return InkWell(
-      onTap: () => onChanged(!done),
+      onTap: onTap,
       child: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
         child: Row(
@@ -349,13 +476,23 @@ class _HomePageState extends State<HomePage> {
                 ],
               ),
             ),
+            const Icon(
+              Icons.chevron_right_rounded,
+              size: 18,
+              color: AppColors.grey500,
+            ),
           ],
         ),
       ),
     );
   }
 
-  Widget _buildActiveExperimentCard(BuildContext context) {
+  Widget _buildActiveExperimentCard(
+    BuildContext context,
+    HomeDashboardData? data,
+  ) {
+    final hasExperiment = data?.activeExperimentTitle != null;
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -378,75 +515,146 @@ class _HomePageState extends State<HomePage> {
           ],
         ),
         const SizedBox(height: 12),
-        KoraCard(
-          onTap: () => context.push(AppRoutes.buildExperimentPath('1')),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                children: [
-                  Text(
-                    'Retinol test 0.3%',
-                    style: AppTypography.bodyLBold.copyWith(
-                      color: AppColors.grey1050,
-                    ),
-                  ),
-                  const Spacer(),
-                  const KoraDeltaPill(delta: -1, isStable: true),
-                ],
-              ),
-              const SizedBox(height: 4),
-              Text(
-                'Day 12 of 42 · Targeting Redness & Pores',
-                style: AppTypography.bodySRegular.copyWith(
-                  color: AppColors.grey700,
+        if (hasExperiment && data != null)
+          Builder(
+            builder: (context) {
+              final expDay = data.activeExperimentDay ?? 1;
+              final expTotal = data.activeExperimentTotalDays ?? 42;
+              final targets = data.activeExperimentTargets;
+              final targetsLabel = targets != null
+                  ? ' · Targeting $targets'
+                  : '';
+              final adh = ((data.activeExperimentAdherence ?? 0.8) * 100)
+                  .toInt();
+
+              return KoraCard(
+                onTap: () => context.push(
+                  AppRoutes.buildExperimentPath(data.activeExperimentId ?? ''),
                 ),
-              ),
-              const SizedBox(height: 12),
-              ClipRRect(
-                borderRadius: BorderRadius.circular(4),
-                child: const LinearProgressIndicator(
-                  value: 12 / 42,
-                  minHeight: 6,
-                  backgroundColor: AppColors.grey200,
-                  valueColor: AlwaysStoppedAnimation(AppColors.primary700),
-                ),
-              ),
-              const SizedBox(height: 10),
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Text(
-                    'Adherence: 82% (good for verdict)',
-                    style: AppTypography.bodyXsMedium.copyWith(
-                      color: AppColors.grey800,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Text(
+                          data.activeExperimentTitle ?? '',
+                          style: AppTypography.bodyLBold.copyWith(
+                            color: AppColors.grey1050,
+                          ),
+                        ),
+                        const Spacer(),
+                        KoraDeltaPill(
+                          delta: data.scoreDelta ?? 0,
+                          isStable: (data.scoreDelta ?? 0).abs() < 3,
+                        ),
+                      ],
                     ),
-                  ),
-                  Row(
-                    children: [
-                      Text(
-                        'Details',
-                        style: AppTypography.bodyXsSemiBold.copyWith(
-                          color: AppColors.primary700,
+                    const SizedBox(height: 4),
+                    Text(
+                      'Day $expDay of $expTotal$targetsLabel',
+                      style: AppTypography.bodySRegular.copyWith(
+                        color: AppColors.grey700,
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    ClipRRect(
+                      borderRadius: BorderRadius.circular(4),
+                      child: LinearProgressIndicator(
+                        value: (expDay / expTotal).clamp(0.0, 1.0),
+                        minHeight: 6,
+                        backgroundColor: AppColors.grey200,
+                        valueColor: const AlwaysStoppedAnimation(
+                          AppColors.primary700,
                         ),
                       ),
-                      const Icon(
-                        Icons.chevron_right_rounded,
-                        size: 16,
-                        color: AppColors.primary700,
+                    ),
+                    const SizedBox(height: 10),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Text(
+                          'Adherence: $adh% (good for verdict)',
+                          style: AppTypography.bodyXsMedium.copyWith(
+                            color: AppColors.grey800,
+                          ),
+                        ),
+                        Row(
+                          children: [
+                            Text(
+                              'Details',
+                              style: AppTypography.bodyXsSemiBold.copyWith(
+                                color: AppColors.primary700,
+                              ),
+                            ),
+                            const Icon(
+                              Icons.chevron_right_rounded,
+                              size: 16,
+                              color: AppColors.primary700,
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              );
+            },
+          )
+        else
+          KoraCard(
+            onTap: () => context.push(AppRoutes.experimentNew),
+            child: Row(
+              children: [
+                Container(
+                  width: 48,
+                  height: 48,
+                  decoration: BoxDecoration(
+                    color: AppColors.primary50,
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: AppColors.primary200),
+                  ),
+                  child: const Icon(
+                    Icons.science_outlined,
+                    color: AppColors.primary700,
+                    size: 24,
+                  ),
+                ),
+                const SizedBox(width: 14),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Start a product experiment',
+                        style: AppTypography.bodyMSemiBold.copyWith(
+                          color: AppColors.grey1050,
+                        ),
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        'Measure the statistical impact of your active formula',
+                        style: AppTypography.bodyXsRegular.copyWith(
+                          color: AppColors.grey700,
+                        ),
                       ),
                     ],
                   ),
-                ],
-              ),
-            ],
+                ),
+                const Icon(
+                  Icons.arrow_forward_rounded,
+                  color: AppColors.primary700,
+                  size: 20,
+                ),
+              ],
+            ),
           ),
-        ),
       ],
     );
   }
 
-  Widget _buildTrendSection(BuildContext context) {
+  Widget _buildTrendSection(BuildContext context, HomeDashboardData? data) {
+    final hasScore = data?.overallScore != null;
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -482,7 +690,7 @@ class _HomePageState extends State<HomePage> {
                 ),
                 alignment: Alignment.center,
                 child: Text(
-                  '75',
+                  hasScore ? '${data!.overallScore}' : '--',
                   style: AppTypography.h4Bold.copyWith(
                     color: AppColors.primary900,
                   ),
@@ -501,13 +709,18 @@ class _HomePageState extends State<HomePage> {
                             color: AppColors.grey1050,
                           ),
                         ),
-                        const SizedBox(width: 6),
-                        const KoraDeltaPill(delta: 3),
+                        if (hasScore && (data!.scoreDelta != null)) ...[
+                          const SizedBox(width: 6),
+                          KoraDeltaPill(delta: data.scoreDelta!),
+                        ],
                       ],
                     ),
                     const SizedBox(height: 2),
                     Text(
-                      'Hydration up +4 pts · Redness stable',
+                      hasScore
+                          ? (data?.scoreSubtitle ??
+                                'Calibrated skin health tracking')
+                          : 'Complete a scan to see your skin trajectory',
                       style: AppTypography.bodySRegular.copyWith(
                         color: AppColors.grey700,
                       ),
@@ -518,78 +731,6 @@ class _HomePageState extends State<HomePage> {
               const Icon(
                 Icons.chevron_right_rounded,
                 color: AppColors.grey600,
-              ),
-            ],
-          ),
-        ),
-      ],
-    );
-  }
-
-  Widget _buildEducationalSection(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [
-            Text(
-              'From Skin Academy',
-              style: AppTypography.h6Bold.copyWith(color: AppColors.grey1050),
-            ),
-            InkWell(
-              onTap: () => context.push(AppRoutes.learn),
-              child: Text(
-                'Explore',
-                style: AppTypography.bodySMedium.copyWith(
-                  color: AppColors.primary700,
-                ),
-              ),
-            ),
-          ],
-        ),
-        const SizedBox(height: 12),
-        KoraCard(
-          onTap: () => context.push(AppRoutes.buildLearnVideoPath('1')),
-          padding: const EdgeInsets.all(12),
-          child: Row(
-            children: [
-              Container(
-                width: 54,
-                height: 54,
-                decoration: BoxDecoration(
-                  color: AppColors.neutral200,
-                  borderRadius: BorderRadius.circular(8),
-                  border: Border.all(color: AppColors.grey300),
-                ),
-                child: const Icon(
-                  Icons.play_circle_outline_rounded,
-                  color: AppColors.primary700,
-                  size: 28,
-                ),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      'How to start retinol without purging',
-                      style: AppTypography.bodyMSemiBold.copyWith(
-                        color: AppColors.grey1050,
-                      ),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                    const SizedBox(height: 2),
-                    Text(
-                      'Dr. Sam Ellis · 8 min guide',
-                      style: AppTypography.bodyXsRegular.copyWith(
-                        color: AppColors.grey700,
-                      ),
-                    ),
-                  ],
-                ),
               ),
             ],
           ),
@@ -621,7 +762,6 @@ class _HomePageState extends State<HomePage> {
               child: const Stack(
                 alignment: Alignment.center,
                 children: [
-                  // Top-left sparkle
                   Positioned(
                     top: 10,
                     left: 8,
@@ -631,7 +771,6 @@ class _HomePageState extends State<HomePage> {
                       color: AppColors.primary300,
                     ),
                   ),
-                  // Bottom-right sparkle
                   Positioned(
                     bottom: 10,
                     right: 8,

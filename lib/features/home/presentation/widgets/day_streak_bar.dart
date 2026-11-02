@@ -62,6 +62,22 @@ class DayStreakBar extends StatelessWidget {
   /// Optional callback invoked when a day item is tapped.
   final ValueChanged<StreakDay>? onDayTap;
 
+  /// Generates the standard 7-day week matching the current weekday.
+  static List<StreakDay> buildCurrentWeekDays({List<bool>? completedDays}) {
+    final todayWeekday = DateTime.now().weekday; // 1 = Monday, 7 = Sunday
+    return List.generate(7, (i) {
+      final dayNum = i + 1;
+      final isCompleted =
+          completedDays != null && i < completedDays.length && completedDays[i];
+      final isToday = dayNum == todayWeekday;
+      return StreakDay(
+        dayNumber: dayNum,
+        isCompleted: isCompleted,
+        isToday: isToday,
+      );
+    });
+  }
+
   /// Default 7-day week sample matching the design.
   static const List<StreakDay> defaultDays = [
     StreakDay(dayNumber: 1, isCompleted: true, isToday: false),

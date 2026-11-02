@@ -60,6 +60,17 @@ void main() {
       final deletedCount = await profileDao.deleteProfile('user_123');
       expect(deletedCount, 1);
       expect(await profileDao.getProfile('user_123'), isNull);
+
+      // Delete all profiles
+      await profileDao.upsertProfile(
+        ProfilesCompanion(
+          id: const Value('user_all'),
+          createdAt: Value(now),
+          updatedAt: Value(now),
+        ),
+      );
+      await profileDao.deleteAllProfiles();
+      expect(await profileDao.getProfile('user_all'), isNull);
     });
   });
 
@@ -114,6 +125,34 @@ void main() {
       await scanDao.deleteScan('scan_1');
       expect(await scanDao.getScan('scan_1'), isNull);
       expect(await scanDao.getScanConcerns('scan_1'), isEmpty);
+
+      // Test clearAllPhotosForUser and deleteAllScansForUser
+      await scanDao.upsertScan(
+        scan: ScansCompanion(
+          id: const Value('scan_photo'),
+          userId: const Value('user_scan'),
+          photoPath: const Value('/path/photo.jpg'),
+          createdAt: Value(now),
+        ),
+        concerns: const [
+          ScanConcernsCompanion(
+            id: Value('c_photo'),
+            scanId: Value('scan_photo'),
+            userId: Value('user_scan'),
+            concern: Value('pores'),
+            rawScore: Value(80),
+            maskPath: Value('/path/mask.png'),
+          ),
+        ],
+      );
+      await scanDao.clearAllPhotosForUser('user_scan');
+      final scanNoPhoto = await scanDao.getScan('scan_photo');
+      expect(scanNoPhoto?.photoPath, isNull);
+      final concernsNoPhoto = await scanDao.getScanConcerns('scan_photo');
+      expect(concernsNoPhoto.first.maskPath, isNull);
+
+      await scanDao.deleteAllScansForUser('user_scan');
+      expect(await scanDao.getScansForUser('user_scan'), isEmpty);
     });
   });
 
@@ -166,6 +205,22 @@ void main() {
       expect(logs.first.done, isTrue);
 
       await routineDao.deleteRoutineItem('item_1');
+      expect(await routineDao.getRoutineItems('user_routine'), isEmpty);
+
+      // Test deleteAllRoutineForUser
+      await routineDao.upsertRoutineItem(
+        RoutineItemsCompanion(
+          id: const Value('item_2'),
+          userId: const Value('user_routine'),
+          name: const Value('Cleanser'),
+          stepType: const Value('cleanser'),
+          period: const Value('am'),
+          sortOrder: const Value(1),
+          createdAt: Value(now),
+          updatedAt: Value(now),
+        ),
+      );
+      await routineDao.deleteAllRoutineForUser('user_routine');
       expect(await routineDao.getRoutineItems('user_routine'), isEmpty);
     });
   });
@@ -221,6 +276,22 @@ void main() {
       await experimentDao.deleteExperiment('exp_1');
       expect(await experimentDao.getExperiment('exp_1'), isNull);
       expect(await experimentDao.getScansForExperiment('exp_1'), isEmpty);
+
+      // Test deleteAllExperimentsForUser
+      await experimentDao.upsertExperiment(
+        experiment: ExperimentsCompanion(
+          id: const Value('exp_2'),
+          userId: const Value('user_exp'),
+          title: const Value('Exp 2'),
+          plannedDays: const Value(28),
+          startedAt: Value(now),
+          startedOn: const Value('2026-10-20'),
+          createdAt: Value(now),
+          updatedAt: Value(now),
+        ),
+      );
+      await experimentDao.deleteAllExperimentsForUser('user_exp');
+      expect(await experimentDao.getExperimentsForUser('user_exp'), isEmpty);
     });
   });
 
@@ -265,6 +336,10 @@ void main() {
       // Remove
       await syncMutationDao.remove('mut_1');
       expect(await syncMutationDao.countPending(), 1);
+
+      // Clear all
+      await syncMutationDao.clearAll();
+      expect(await syncMutationDao.countPending(), 0);
     });
   });
 }

@@ -46,4 +46,9 @@ class ProfileDao {
       _db.profilesTable,
     )..where((tbl) => tbl.id.equals(id))).go();
   }
+
+  /// Deletes all profiles (used during complete account wipe).
+  Future<int> deleteAllProfiles() {
+    return _db.delete(_db.profilesTable).go();
+  }
 }

@@ -1,11 +1,15 @@
-// ignore_for_file: document_ignores, lines_longer_than_80_chars
+import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:get_it/get_it.dart';
 import 'package:kora/common/app_colors.dart';
 import 'package:kora/common/app_typography.dart';
+import 'package:kora/features/notifications/data/datasources/notification_local_datasource.dart';
+import 'package:kora/features/notifications/data/models/notification_preferences_model.dart';
 import 'package:kora/features/profile/presentation/widgets/setting_section.dart';
 
-/// Notification preferences and scan reminder scheduler screen (C22 in blueprint).
+/// Notification preferences and scan reminder scheduler screen
+/// (C22 in blueprint).
 class NotificationsPage extends StatefulWidget {
   /// Creates a [NotificationsPage].
   const NotificationsPage({super.key});
@@ -20,6 +24,56 @@ class _NotificationsPageState extends State<NotificationsPage> {
   bool _eveningRoutine = true;
   bool _milestones = true;
   bool _streakReminders = true;
+
+  @override
+  void initState() {
+    super.initState();
+    unawaited(_loadPreferences());
+  }
+
+  Future<void> _loadPreferences() async {
+    final sl = GetIt.instance;
+    if (sl.isRegistered<NotificationLocalDataSource>()) {
+      try {
+        final prefs = await sl<NotificationLocalDataSource>().getPreferences();
+        if (mounted) {
+          setState(() {
+            _weeklyScan = prefs.isEnabled;
+          });
+        }
+      } on Object catch (_) {}
+    }
+  }
+
+  Future<void> _updateWeeklyScan(bool value) async {
+    setState(() => _weeklyScan = value);
+    final sl = GetIt.instance;
+    if (sl.isRegistered<NotificationLocalDataSource>()) {
+      try {
+        final current = await sl<NotificationLocalDataSource>()
+            .getPreferences();
+        final updated = NotificationPreferencesModel(
+          isEnabled: value,
+          preferredDayOfWeek: current.preferredDayOfWeek,
+          preferredHour: current.preferredHour,
+          preferredMinute: current.preferredMinute,
+          quietHoursStart: current.quietHoursStart,
+          quietHoursEnd: current.quietHoursEnd,
+          maxWeeklyNotifications: current.maxWeeklyNotifications,
+          consecutiveIgnoredCount: current.consecutiveIgnoredCount,
+          frequencyMultiplier: current.frequencyMultiplier,
+          weeklyDeliveredCount: current.weeklyDeliveredCount,
+          currentWeekNumber: current.currentWeekNumber,
+          lastDeliveredAt: current.lastDeliveredAt,
+          lastOpenedAt: current.lastOpenedAt,
+        );
+        await sl<NotificationLocalDataSource>().savePreferences(updated);
+        if (!value) {
+          await sl<NotificationLocalDataSource>().cancelAll();
+        }
+      } on Object catch (_) {}
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -65,7 +119,7 @@ class _NotificationsPageState extends State<NotificationsPage> {
                     Switch.adaptive(
                       value: _weeklyScan,
                       activeTrackColor: AppColors.primary700,
-                      onChanged: (val) => setState(() => _weeklyScan = val),
+                      onChanged: _updateWeeklyScan,
                     ),
                   ],
                 ),
@@ -118,11 +172,12 @@ class _NotificationsPageState extends State<NotificationsPage> {
                   borderRadius: BorderRadius.circular(10),
                 ),
                 child: Text(
-                  'Kora policy: Maximum 3 notifications per week. No marketing spam, no guilt-tripping messages.',
+                  'Kora respects your attention: maximum 2 notifications per '
+                  'week. No spam, no marketing alerts.',
                   style: AppTypography.bodyXsRegular.copyWith(
                     color: AppColors.grey700,
+                    height: 1.4,
                   ),
-                  textAlign: TextAlign.center,
                 ),
               ),
             ],

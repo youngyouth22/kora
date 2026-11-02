@@ -1,5 +1,6 @@
 import 'package:get_it/get_it.dart';
 import 'package:kora/core/database/daos/experiment_dao.dart';
+import 'package:kora/core/database/daos/routine_dao.dart';
 import 'package:kora/core/database/daos/scan_dao.dart';
 import 'package:kora/features/progress/data/repositories/progress_repository_impl.dart';
 import 'package:kora/features/progress/domain/repositories/progress_repository.dart';
@@ -15,6 +16,7 @@ void initProgressInjection(GetIt sl) {
         experimentDao: sl.isRegistered<ExperimentDao>()
             ? sl<ExperimentDao>()
             : null,
+        routineDao: sl.isRegistered<RoutineDao>() ? sl<RoutineDao>() : null,
       ),
     );
   }

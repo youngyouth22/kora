@@ -18,15 +18,39 @@ class ScanDao {
   /// Retrieves all scans for [userId] sorted by createdAt descending.
   Future<List<ScanEntry>> getScansForUser(String userId) {
     return (_db.select(_db.scansTable)
-          ..where((tbl) => tbl.userId.equals(userId))
+          ..where(
+            (tbl) =>
+                tbl.userId.equals(userId) | tbl.userId.equals('local-user'),
+          )
           ..orderBy([(tbl) => OrderingTerm.desc(tbl.createdAt)]))
         .get();
+  }
+
+  /// Migrates any orphaned scans from 'local-user' to [userId].
+  Future<void> migrateLocalUserScans(String userId) async {
+    if (userId.isEmpty || userId == 'local-user') return;
+    final orphaned =
+        await (_db.select(_db.scansTable)
+              ..where((tbl) => tbl.userId.equals('local-user'))
+              ..limit(1))
+            .get();
+    if (orphaned.isNotEmpty) {
+      await (_db.update(_db.scansTable)
+            ..where((tbl) => tbl.userId.equals('local-user')))
+          .write(ScansCompanion(userId: Value(userId)));
+      await (_db.update(_db.scanConcernsTable)
+            ..where((tbl) => tbl.userId.equals('local-user')))
+          .write(ScanConcernsCompanion(userId: Value(userId)));
+    }
   }
 
   /// Watches all scans for [userId] reactively.
   Stream<List<ScanEntry>> watchScansForUser(String userId) {
     return (_db.select(_db.scansTable)
-          ..where((tbl) => tbl.userId.equals(userId))
+          ..where(
+            (tbl) =>
+                tbl.userId.equals(userId) | tbl.userId.equals('local-user'),
+          )
           ..orderBy([(tbl) => OrderingTerm.desc(tbl.createdAt)]))
         .watch();
   }
@@ -60,6 +84,32 @@ class ScanDao {
       await (_db.delete(
         _db.scansTable,
       )..where((tbl) => tbl.id.equals(id))).go();
+    });
+  }
+
+  /// Deletes all scans and associated concerns for [userId]
+  /// (used on account reset).
+  Future<void> deleteAllScansForUser(String userId) {
+    return _db.transaction(() async {
+      await (_db.delete(
+        _db.scanConcernsTable,
+      )..where((tbl) => tbl.userId.equals(userId))).go();
+      await (_db.delete(
+        _db.scansTable,
+      )..where((tbl) => tbl.userId.equals(userId))).go();
+    });
+  }
+
+  /// Clears photo references from scans and masks while preserving
+  /// numerical scores.
+  Future<void> clearAllPhotosForUser(String userId) {
+    return _db.transaction(() async {
+      await (_db.update(_db.scansTable)
+            ..where((tbl) => tbl.userId.equals(userId)))
+          .write(const ScansCompanion(photoPath: Value(null)));
+      await (_db.update(_db.scanConcernsTable)
+            ..where((tbl) => tbl.userId.equals(userId)))
+          .write(const ScanConcernsCompanion(maskPath: Value(null)));
     });
   }
 }

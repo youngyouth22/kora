@@ -1,6 +1,7 @@
 // ignore_for_file: document_ignores
 
 import 'package:get_it/get_it.dart';
+import 'package:kora/core/database/app_database.dart';
 import 'package:kora/core/database/daos/profile_dao.dart';
 import 'package:kora/core/database/daos/sync_mutation_dao.dart';
 import 'package:kora/core/services/app_preferences_service.dart';
@@ -27,6 +28,11 @@ void initOnboardingInjection(GetIt sl) {
         profileDao: sl.isRegistered<ProfileDao>() ? sl<ProfileDao>() : null,
         preferencesService: sl.isRegistered<AppPreferencesService>()
             ? sl<AppPreferencesService>()
+            : null,
+        appDatabase: sl.isRegistered<AppDatabase>() ? sl<AppDatabase>() : null,
+        syncEngine: sl.isRegistered<SyncEngine>() ? sl<SyncEngine>() : null,
+        syncMutationDao: sl.isRegistered<SyncMutationDao>()
+            ? sl<SyncMutationDao>()
             : null,
       ),
     );

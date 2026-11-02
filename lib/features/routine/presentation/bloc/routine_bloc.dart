@@ -3,6 +3,7 @@
 
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:kora/core/enums/status.dart';
+import 'package:kora/core/utils/active_user_resolver.dart';
 import 'package:kora/features/routine/data/datasources/routine_sql_seed_datasource.dart';
 import 'package:kora/features/routine/domain/entities/routine_product.dart';
 import 'package:kora/features/routine/domain/entities/skin_checkin.dart';
@@ -58,55 +59,65 @@ class RoutineBloc extends Bloc<RoutineEvent, RoutineState> {
   ) async {
     emit(state.copyWith(status: BaseStatus.loading));
 
-    final userId = event.userId ?? RoutineSqlSeedDataSource.defaultUserId;
-    final logDate =
-        event.logDate ?? RoutineSqlSeedDataSource.formatIsoDate(DateTime.now());
+    try {
+      final userId = event.userId ?? await ActiveUserResolver.resolveUserId();
+      final logDate =
+          event.logDate ??
+          RoutineSqlSeedDataSource.formatIsoDate(DateTime.now());
 
-    final productsResult = await _getRoutineProducts(userId: userId);
-    final logsResult = await _getRoutineLogsForDate(
-      userId: userId,
-      logDate: logDate,
-    );
-    final catalogResult = await _getCatalogProducts();
-    final checkinResult = await _manageSkinCheckin.getForDate(
-      userId: userId,
-      date: logDate,
-    );
+      final productsResult = await _getRoutineProducts(userId: userId);
+      final logsResult = await _getRoutineLogsForDate(
+        userId: userId,
+        logDate: logDate,
+      );
+      final catalogResult = await _getCatalogProducts();
+      final checkinResult = await _manageSkinCheckin.getForDate(
+        userId: userId,
+        date: logDate,
+      );
 
-    productsResult.fold(
-      (failure) => emit(
+      productsResult.fold(
+        (failure) => emit(
+          state.copyWith(
+            status: BaseStatus.failure,
+            userId: userId,
+            currentDate: logDate,
+            errorMessage: failure.message,
+          ),
+        ),
+        (products) {
+          final selectedPeriod = event.initialPeriod ?? state.selectedPeriod;
+          final logs = logsResult.getOrElse(() => const []);
+          final catalog = catalogResult.getOrElse(() => const []);
+          final checkin = checkinResult.getOrElse(() => null);
+          final notices = _evaluateInsights.evaluateCompatibility(
+            items: products,
+            period: selectedPeriod,
+          );
+
+          emit(
+            state.copyWith(
+              status: BaseStatus.success,
+              userId: userId,
+              selectedPeriod: selectedPeriod,
+              currentDate: logDate,
+              products: products,
+              logsForDate: logs,
+              catalogProducts: catalog,
+              todayCheckin: checkin,
+              compatibilityNotices: notices,
+            ),
+          );
+        },
+      );
+    } on Object catch (e) {
+      emit(
         state.copyWith(
           status: BaseStatus.failure,
-          userId: userId,
-          currentDate: logDate,
-          errorMessage: failure.message,
+          errorMessage: e.toString(),
         ),
-      ),
-      (products) {
-        final selectedPeriod = event.initialPeriod ?? state.selectedPeriod;
-        final logs = logsResult.getOrElse(() => const []);
-        final catalog = catalogResult.getOrElse(() => const []);
-        final checkin = checkinResult.getOrElse(() => null);
-        final notices = _evaluateInsights.evaluateCompatibility(
-          items: products,
-          period: selectedPeriod,
-        );
-
-        emit(
-          state.copyWith(
-            status: BaseStatus.success,
-            userId: userId,
-            selectedPeriod: selectedPeriod,
-            currentDate: logDate,
-            products: products,
-            logsForDate: logs,
-            catalogProducts: catalog,
-            todayCheckin: checkin,
-            compatibilityNotices: notices,
-          ),
-        );
-      },
-    );
+      );
+    }
   }
 
   void _onPeriodChanged(

@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:kora/common/app_themes.dart';
+import 'package:kora/core/error/failures.dart';
 import 'package:kora/core/utils/typedefs.dart';
 import 'package:kora/features/auth/domain/entities/user_account.dart';
 import 'package:kora/features/auth/domain/repositories/auth_repository.dart';
@@ -45,6 +46,16 @@ class _MockRepo implements AuthRepository {
   ResultFuture<UserAccount?> getCurrentUser() async => const Right(null);
 }
 
+class _FailingGoogleRepo extends _MockRepo {
+  @override
+  ResultFuture<UserAccount> linkWithGoogle() async => const Left(
+        AuthFailure(
+          message:
+              'Google Sign-In error: [28444] Developer console is not set up correctly.',
+        ),
+      );
+}
+
 void main() {
   late AuthBloc authBloc;
 
@@ -84,6 +95,46 @@ void main() {
       // Verify Apple and Email are removed per Google-only requirement
       expect(find.text('Continue with Apple'), findsNothing);
       expect(find.text('Continue with Email'), findsNothing);
+    },
+  );
+
+  testWidgets(
+    'shows popup when Google Sign-In fails with developer console error and allows continuing as guest',
+    (tester) async {
+      final failingRepo = _FailingGoogleRepo();
+      final failingBloc = AuthBloc(
+        sendEmailOtpUseCase: SendEmailOtpUseCase(failingRepo),
+        verifyEmailOtpUseCase: VerifyEmailOtpUseCase(failingRepo),
+        setAccountPasswordUseCase: SetAccountPasswordUseCase(failingRepo),
+        linkWithAppleUseCase: LinkWithAppleUseCase(failingRepo),
+        linkWithGoogleUseCase: LinkWithGoogleUseCase(failingRepo),
+        skipAccountLinkingUseCase: SkipAccountLinkingUseCase(failingRepo),
+      );
+
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: AppThemes.lightTheme,
+          home: BlocProvider<AuthBloc>.value(
+            value: failingBloc,
+            child: const AccountSecurePage(),
+          ),
+        ),
+      );
+
+      await tester.tap(find.text('Continue with Google'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Google Sign-In Unavailable'), findsOneWidget);
+      expect(
+        find.textContaining('Google Sign-In is not currently available'),
+        findsOneWidget,
+      );
+      expect(find.text('Continue as Guest'), findsOneWidget);
+
+      await tester.tap(find.text('Continue as Guest'));
+      await tester.pumpAndSettle();
+
+      await failingBloc.close();
     },
   );
 }

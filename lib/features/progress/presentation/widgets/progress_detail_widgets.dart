@@ -3,8 +3,10 @@
 import 'package:flutter/material.dart';
 import 'package:kora/common/app_colors.dart';
 import 'package:kora/common/app_typography.dart';
+import 'package:kora/common/image_resources.dart';
 import 'package:kora/common/widgets/kora_card.dart';
 import 'package:kora/common/widgets/kora_delta_pill.dart';
+import 'package:kora/common/widgets/kora_scan_image.dart';
 import 'package:kora/features/progress/domain/entities/progress_scan.dart';
 
 /// Displays anatomical HD zone scores (`public.scan_concerns.zone`:
@@ -79,6 +81,20 @@ class ConcernRegionalZoneCard extends StatelessWidget {
                 final delta = (item.rawScore - baseScore).round();
                 return Row(
                   children: [
+                    ClipRRect(
+                      borderRadius: BorderRadius.circular(8),
+                      child: SizedBox(
+                        width: 38,
+                        height: 38,
+                        child: KoraScanImage(
+                          photoPath: item.maskPath,
+                          showMeshOverlay: true,
+                          zoneHighlight: zoneKey,
+                          fit: BoxFit.cover,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 10),
                     Expanded(
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
@@ -123,7 +139,7 @@ class ConcernRegionalZoneCard extends StatelessWidget {
 
 /// Interactive split before/after scan comparison viewer with draggable
 /// divider, Scan A / Scan B selector bar, and Photo vs Detected Zones mode.
-class CompareSplitViewerCard extends StatelessWidget {
+class CompareSplitViewerCard extends StatefulWidget {
   /// Creates a [CompareSplitViewerCard].
   const CompareSplitViewerCard({
     required this.scanA,
@@ -183,9 +199,36 @@ class CompareSplitViewerCard extends StatelessWidget {
   static String _shortDate(DateTime dt) => '${_months[dt.month - 1]} ${dt.day}';
 
   @override
-  Widget build(BuildContext context) {
-    final scoreDelta = (scanB.overallScore - scanA.overallScore).round();
+  State<CompareSplitViewerCard> createState() => _CompareSplitViewerCardState();
+}
 
+class _CompareSplitViewerCardState extends State<CompareSplitViewerCard> {
+  late double _localSliderPosition;
+
+  @override
+  void initState() {
+    super.initState();
+    _localSliderPosition = widget.sliderPosition;
+  }
+
+  @override
+  void didUpdateWidget(covariant CompareSplitViewerCard oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if ((widget.sliderPosition - _localSliderPosition).abs() > 0.05 &&
+        widget.sliderPosition != oldWidget.sliderPosition) {
+      _localSliderPosition = widget.sliderPosition;
+    }
+  }
+
+  void _handleDrag(double localX, double totalWidth) {
+    if (totalWidth <= 0) return;
+    final next = (localX / totalWidth).clamp(0.04, 0.96);
+    setState(() => _localSliderPosition = next);
+    widget.onSliderChanged(next);
+  }
+
+  @override
+  Widget build(BuildContext context) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
@@ -195,9 +238,9 @@ class CompareSplitViewerCard extends StatelessWidget {
             Expanded(
               child: _ScanSelectorDropdown(
                 label: 'BEFORE (SCAN A)',
-                selectedScan: scanA,
-                allScans: allScans,
-                onSelected: onScanASelected,
+                selectedScan: widget.scanA,
+                allScans: widget.allScans,
+                onSelected: widget.onScanASelected,
               ),
             ),
             const Padding(
@@ -211,9 +254,9 @@ class CompareSplitViewerCard extends StatelessWidget {
             Expanded(
               child: _ScanSelectorDropdown(
                 label: 'AFTER (SCAN B)',
-                selectedScan: scanB,
-                allScans: allScans,
-                onSelected: onScanBSelected,
+                selectedScan: widget.scanB,
+                allScans: widget.allScans,
+                onSelected: widget.onScanBSelected,
               ),
             ),
           ],
@@ -226,14 +269,14 @@ class CompareSplitViewerCard extends StatelessWidget {
           children: [
             _ModeTogglePill(
               label: 'Photo',
-              isSelected: !showZonesOverlay,
-              onTap: () => onToggleOverlay(false),
+              isSelected: !widget.showZonesOverlay,
+              onTap: () => widget.onToggleOverlay(false),
             ),
             const SizedBox(width: 8),
             _ModeTogglePill(
               label: 'Detected Zones',
-              isSelected: showZonesOverlay,
-              onTap: () => onToggleOverlay(true),
+              isSelected: widget.showZonesOverlay,
+              onTap: () => widget.onToggleOverlay(true),
             ),
           ],
         ),
@@ -245,112 +288,169 @@ class CompareSplitViewerCard extends StatelessWidget {
           child: ClipRRect(
             borderRadius: BorderRadius.circular(16),
             child: SizedBox(
-              height: 300,
+              height: 320,
               child: LayoutBuilder(
                 builder: (context, constraints) {
                   final width = constraints.maxWidth;
-                  final dividerX = width * sliderPosition;
+                  final dividerX = width * _localSliderPosition;
 
-                  return Stack(
-                    fit: StackFit.expand,
-                    children: [
-                      // Right / Base Layer: AFTER (Scan B)
-                      Container(
-                        color: AppColors.primary50,
-                        alignment: Alignment.center,
-                        child: _ScanPreviewSurface(
-                          title: '${_shortDate(scanB.createdAt)} (After)',
-                          scoreLabel:
-                              'Score: ${scanB.overallScore.toStringAsFixed(1)} (${scoreDelta >= 0 ? "+$scoreDelta" : "$scoreDelta"} pts)',
-                          skinAge: scanB.skinAge,
-                          showZones: showZonesOverlay,
-                          isAfter: true,
-                        ),
-                      ),
-
-                      // Left / Clipped Layer: BEFORE (Scan A)
-                      ClipRect(
-                        clipper: _HorizontalSplitClipper(dividerX),
-                        child: Container(
-                          color: AppColors.neutral300,
-                          alignment: Alignment.center,
-                          child: _ScanPreviewSurface(
-                            title: '${_shortDate(scanA.createdAt)} (Before)',
-                            scoreLabel:
-                                'Score: ${scanA.overallScore.toStringAsFixed(1)} (Baseline)',
-                            skinAge: scanA.skinAge,
-                            showZones: showZonesOverlay,
-                            isAfter: false,
+                  return Semantics(
+                    slider: true,
+                    label: 'Before and After comparison slider',
+                    child: GestureDetector(
+                      key: const Key('compare_split_slider_gesture'),
+                      behavior: HitTestBehavior.opaque,
+                      onHorizontalDragDown: (details) {
+                        _handleDrag(details.localPosition.dx, width);
+                      },
+                      onHorizontalDragStart: (details) {
+                        _handleDrag(details.localPosition.dx, width);
+                      },
+                      onHorizontalDragUpdate: (details) {
+                        _handleDrag(details.localPosition.dx, width);
+                      },
+                      onTapDown: (details) {
+                        _handleDrag(details.localPosition.dx, width);
+                      },
+                      child: Stack(
+                        fit: StackFit.expand,
+                        children: [
+                          // Right / Base Layer: AFTER (Scan B)
+                          SizedBox(
+                            width: width,
+                            height: 320,
+                            child: KoraScanImage(
+                              photoPath: widget.scanB.photoPath,
+                              scanId: widget.scanB.id,
+                              fallbackAsset: ImageResources.onboardingScanWeek6,
+                              showMeshOverlay: widget.showZonesOverlay,
+                              fit: BoxFit.cover,
+                              semanticLabel:
+                                  'Scan B After - ${CompareSplitViewerCard._shortDate(widget.scanB.createdAt)}',
+                            ),
                           ),
-                        ),
-                      ),
 
-                      // Draggable Vertical Divider Line & Handle
-                      Positioned(
-                        left: dividerX - 24,
-                        top: 0,
-                        bottom: 0,
-                        child: Semantics(
-                          slider: true,
-                          label: 'Before and After comparison slider',
-                          child: GestureDetector(
-                            behavior: HitTestBehavior.opaque,
-                            onHorizontalDragUpdate: (details) {
-                              final next =
-                                  (dividerX + details.delta.dx) / width;
-                              onSliderChanged(next.clamp(0.08, 0.92));
-                            },
+                          // Left / Clipped Layer: BEFORE (Scan A)
+                          ClipRect(
+                            clipper: _HorizontalSplitClipper(dividerX),
                             child: SizedBox(
-                              width: 48,
-                              child: Stack(
-                                alignment: Alignment.center,
-                                children: [
-                                  Container(
-                                    width: 2,
-                                    color: AppColors.primary700,
-                                  ),
-                                  Container(
-                                    width: 32,
-                                    height: 32,
-                                    decoration: BoxDecoration(
-                                      shape: BoxShape.circle,
-                                      color: AppColors.grey50,
-                                      border: Border.all(
-                                        color: AppColors.primary700,
-                                        width: 1.5,
-                                      ),
-                                    ),
-                                    child: const Icon(
-                                      Icons.compare_arrows_rounded,
-                                      size: 16,
-                                      color: AppColors.primary800,
-                                    ),
-                                  ),
-                                ],
+                              width: width,
+                              height: 320,
+                              child: KoraScanImage(
+                                photoPath: widget.scanA.photoPath,
+                                scanId: widget.scanA.id,
+                                fallbackAsset:
+                                    ImageResources.onboardingScanWeek1,
+                                showMeshOverlay: widget.showZonesOverlay,
+                                fit: BoxFit.cover,
+                                semanticLabel:
+                                    'Scan A Before - ${CompareSplitViewerCard._shortDate(widget.scanA.createdAt)}',
                               ),
                             ),
                           ),
-                        ),
-                      ),
 
-                      // Corner Badges
-                      Positioned(
-                        left: 12,
-                        top: 12,
-                        child: _CornerBadge(
-                          text: 'BEFORE · ${_shortDate(scanA.createdAt)}',
-                          textColor: AppColors.grey900,
-                        ),
+                          // Draggable Vertical Divider Line & Handle
+                          Positioned(
+                            left: dividerX - 1,
+                            top: 0,
+                            bottom: 0,
+                            child: IgnorePointer(
+                              child: Container(
+                                width: 2,
+                                color: AppColors.grey50,
+                              ),
+                            ),
+                          ),
+
+                          Positioned(
+                            left: dividerX - 18,
+                            top: 142,
+                            child: IgnorePointer(
+                              child: Container(
+                                width: 36,
+                                height: 36,
+                                decoration: BoxDecoration(
+                                  shape: BoxShape.circle,
+                                  color: AppColors.grey50,
+                                  border: Border.all(
+                                    color: AppColors.primary700,
+                                    width: 2,
+                                  ),
+                                  boxShadow: [
+                                    BoxShadow(
+                                      color: AppColors.grey1050.withValues(
+                                        alpha: 0.22,
+                                      ),
+                                      blurRadius: 6,
+                                      offset: const Offset(0, 2),
+                                    ),
+                                  ],
+                                ),
+                                child: const Icon(
+                                  Icons.compare_arrows_rounded,
+                                  size: 18,
+                                  color: AppColors.primary800,
+                                ),
+                              ),
+                            ),
+                          ),
+
+                          // Corner Badges
+                          Positioned(
+                            left: 12,
+                            top: 12,
+                            child: IgnorePointer(
+                              child: _CornerBadge(
+                                text:
+                                    'BEFORE · ${CompareSplitViewerCard._shortDate(widget.scanA.createdAt)}',
+                                textColor: AppColors.grey900,
+                              ),
+                            ),
+                          ),
+                          Positioned(
+                            right: 12,
+                            top: 12,
+                            child: IgnorePointer(
+                              child: _CornerBadge(
+                                text:
+                                    'AFTER · ${CompareSplitViewerCard._shortDate(widget.scanB.createdAt)}',
+                                textColor: AppColors.primary800,
+                              ),
+                            ),
+                          ),
+
+                          // Bottom subtle hint pill
+                          Positioned(
+                            left: 0,
+                            right: 0,
+                            bottom: 10,
+                            child: Center(
+                              child: IgnorePointer(
+                                child: Container(
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 10,
+                                    vertical: 4,
+                                  ),
+                                  decoration: BoxDecoration(
+                                    color: AppColors.grey1050.withValues(
+                                      alpha: 0.65,
+                                    ),
+                                    borderRadius: BorderRadius.circular(100),
+                                  ),
+                                  child: Text(
+                                    'Drag anywhere to compare',
+                                    style: AppTypography.bodyXsRegular.copyWith(
+                                      color: AppColors.grey50,
+                                      fontSize: 10,
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ),
+                        ],
                       ),
-                      Positioned(
-                        right: 12,
-                        top: 12,
-                        child: _CornerBadge(
-                          text: 'AFTER · ${_shortDate(scanB.createdAt)}',
-                          textColor: AppColors.primary800,
-                        ),
-                      ),
-                    ],
+                    ),
                   );
                 },
               ),
@@ -426,83 +526,6 @@ class _ScanSelectorDropdown extends StatelessWidget {
           ),
         ],
       ),
-    );
-  }
-}
-
-class _ScanPreviewSurface extends StatelessWidget {
-  const _ScanPreviewSurface({
-    required this.title,
-    required this.scoreLabel,
-    required this.skinAge,
-    required this.showZones,
-    required this.isAfter,
-  });
-
-  final String title;
-  final String scoreLabel;
-  final int skinAge;
-  final bool showZones;
-  final bool isAfter;
-
-  @override
-  Widget build(BuildContext context) {
-    final accent = isAfter ? AppColors.primary700 : AppColors.grey700;
-    return Column(
-      mainAxisAlignment: MainAxisAlignment.center,
-      children: [
-        Container(
-          width: 84,
-          height: 84,
-          decoration: BoxDecoration(
-            shape: BoxShape.circle,
-            color: AppColors.grey50,
-            border: Border.all(
-              color: isAfter ? AppColors.primary300 : AppColors.grey400,
-              width: 1.5,
-            ),
-          ),
-          alignment: Alignment.center,
-          child: Icon(
-            showZones
-                ? Icons.center_focus_strong_outlined
-                : Icons.face_retouching_natural_rounded,
-            size: 42,
-            color: accent,
-          ),
-        ),
-        const SizedBox(height: 12),
-        Text(
-          title,
-          style: AppTypography.bodyLBold.copyWith(
-            color: isAfter ? AppColors.primary900 : AppColors.grey1050,
-          ),
-        ),
-        const SizedBox(height: 2),
-        Text(
-          scoreLabel,
-          style: AppTypography.bodyXsSemiBold.copyWith(
-            color: isAfter ? AppColors.primary800 : AppColors.grey800,
-          ),
-        ),
-        const SizedBox(height: 6),
-        Container(
-          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-          decoration: BoxDecoration(
-            color: AppColors.grey50,
-            borderRadius: BorderRadius.circular(6),
-            border: Border.all(color: AppColors.grey300),
-          ),
-          child: Text(
-            showZones
-                ? 'HD Zone Mesh · Skin Age $skinAge'
-                : 'Calibrated Daylight · Skin Age $skinAge',
-            style: AppTypography.bodyXsRegular.copyWith(
-              color: AppColors.grey800,
-            ),
-          ),
-        ),
-      ],
     );
   }
 }

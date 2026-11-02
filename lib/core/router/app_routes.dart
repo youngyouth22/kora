@@ -308,6 +308,20 @@ abstract final class AppRoutes {
   /// Route name for profile help.
   static const String profileHelpName = 'profile_help';
 
+  /// Skincare routine preferences & scheduling.
+  static const String profileRoutinePreferences =
+      '/profile/routine-preferences';
+
+  /// Route name for profile routine preferences.
+  static const String profileRoutinePreferencesName =
+      'profile_routine_preferences';
+
+  /// User skin profile, skin type and concerns.
+  static const String profileSkinProfile = '/profile/skin-profile';
+
+  /// Route name for profile skin profile.
+  static const String profileSkinProfileName = 'profile_skin_profile';
+
   // ===========================================================================
   // PARAMETER KEYS
   // ===========================================================================
@@ -347,6 +361,10 @@ abstract final class AppRoutes {
   /// Builds a routine ingredient breakdown path: `/routine/ingredients/$id`.
   static String buildRoutineIngredientsPath(String id) =>
       '/routine/ingredients/$id';
+
+  /// Builds a routine path with optional period query parameter.
+  static String buildRoutinePath([String? period]) =>
+      period != null ? '/routine?period=$period' : '/routine';
 
   /// Builds a routine product detail path: `/routine/product/$id`.
   static String buildRoutineProductDetailPath(String id) =>

@@ -40,7 +40,6 @@ class RoutineRepositoryImpl implements RoutineRepository {
   final bool _seedDemoIfEmpty;
 
   final Set<String> _seededUserIds = <String>{};
-  final Set<String> _seededLogKeys = <String>{};
   final Map<String, SkinCheckin> _checkinsCache = <String, SkinCheckin>{};
   final Map<String, List<RoutineProduct>> _memoryItems =
       <String, List<RoutineProduct>>{};
@@ -48,7 +47,13 @@ class RoutineRepositoryImpl implements RoutineRepository {
       <String, List<RoutineLogRecord>>{};
 
   Future<void> _ensureDemoSeedForUser(String userId) async {
-    if (!_seedDemoIfEmpty && userId != RoutineSqlSeedDataSource.defaultUserId) {
+    if (!_seedDemoIfEmpty) {
+      return;
+    }
+    // Only populate demo seed records for demo accounts or unauthenticated
+    // fallback
+    if (userId != RoutineSqlSeedDataSource.defaultUserId &&
+        userId != '00000000-0000-0000-0000-000000000001') {
       return;
     }
     if (_seededUserIds.contains(userId)) return;
@@ -74,42 +79,13 @@ class RoutineRepositoryImpl implements RoutineRepository {
     }
   }
 
-  Future<void> _ensureDemoLogsForDate({
-    required String userId,
-    required String logDate,
-  }) async {
-    if (!_seedDemoIfEmpty && userId != RoutineSqlSeedDataSource.defaultUserId) {
-      return;
-    }
-    final key = '$userId::$logDate';
-    if (_seededLogKeys.contains(key)) return;
-    _seededLogKeys.add(key);
-
-    final dao = _routineDao;
-    if (dao == null) {
-      _memoryLogs.putIfAbsent(
-        key,
-        () => RoutineSqlSeedDataSource.buildSeedLogsForDate(
-          userId: userId,
-          logDate: logDate,
-        ),
-      );
-      return;
-    }
-
-    final existingLogs = await dao.getRoutineLogsForDate(
-      userId: userId,
-      logDate: logDate,
-    );
-    if (existingLogs.isEmpty) {
-      final seedLogs = RoutineSqlSeedDataSource.buildSeedLogsForDate(
-        userId: userId,
-        logDate: logDate,
-      );
-      for (final log in seedLogs) {
-        await dao.upsertRoutineLog(_mapEntityToLogCompanion(log));
-      }
-    }
+  /// Identifies legacy auto-seeded demo routine logs that should not mark
+  /// user days as completed.
+  static bool isDemoSeedLog(String id) {
+    return id.endsWith('-am-cleanser') ||
+        id.endsWith('-am-toner') ||
+        id.endsWith('-am-vitc') ||
+        id.endsWith('-pm-cleanser');
   }
 
   @override
@@ -274,21 +250,20 @@ class RoutineRepositoryImpl implements RoutineRepository {
     required String logDate,
   }) async {
     try {
-      await _ensureDemoLogsForDate(userId: userId, logDate: logDate);
       final dao = _routineDao;
       if (dao == null) {
         final key = '$userId::$logDate';
-        return Right(
-          List<RoutineLogRecord>.from(
-            _memoryLogs[key] ?? const <RoutineLogRecord>[],
-          ),
-        );
+        final list = List<RoutineLogRecord>.from(
+          _memoryLogs[key] ?? const <RoutineLogRecord>[],
+        ).where((log) => !isDemoSeedLog(log.id)).toList();
+        return Right(list);
       }
       final entries = await dao.getRoutineLogsForDate(
         userId: userId,
         logDate: logDate,
       );
-      return Right(entries.map(_mapLogToEntity).toList());
+      final validEntries = entries.where((e) => !isDemoSeedLog(e.id)).toList();
+      return Right(validEntries.map(_mapLogToEntity).toList());
     } on Object catch (e) {
       return Left(CacheFailure(message: 'Failed to read routine logs: $e'));
     }
@@ -302,11 +277,19 @@ class RoutineRepositoryImpl implements RoutineRepository {
     final dao = _routineDao;
     if (dao == null) {
       final key = '$userId::$logDate';
-      return Stream.value(_memoryLogs[key] ?? const <RoutineLogRecord>[]);
+      final list = List<RoutineLogRecord>.from(
+        _memoryLogs[key] ?? const <RoutineLogRecord>[],
+      ).where((log) => !isDemoSeedLog(log.id)).toList();
+      return Stream.value(list);
     }
     return dao
         .watchRoutineLogsForDate(userId: userId, logDate: logDate)
-        .map((entries) => entries.map(_mapLogToEntity).toList());
+        .map(
+          (entries) => entries
+              .where((e) => !isDemoSeedLog(e.id))
+              .map(_mapLogToEntity)
+              .toList(),
+        );
   }
 
   @override
@@ -398,8 +381,7 @@ class RoutineRepositoryImpl implements RoutineRepository {
       if (_checkinsCache.containsKey(key)) {
         return Right(_checkinsCache[key]);
       }
-      if (_seedDemoIfEmpty ||
-          userId == RoutineSqlSeedDataSource.defaultUserId) {
+      if (_seedDemoIfEmpty) {
         final seeded = RoutineSqlSeedDataSource.buildDefaultCheckin(
           userId: userId,
           date: date,

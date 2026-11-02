@@ -7,6 +7,7 @@ import 'package:flutter/material.dart';
 import 'package:kora/common/app_colors.dart';
 import 'package:kora/common/app_typography.dart';
 import 'package:kora/common/constants/mascot_pose.dart';
+import 'package:kora/common/widgets/kora_scan_image.dart';
 import 'package:kora/common/widgets/mascot_illustration.dart';
 import 'package:kora/common/widgets/primary_button.dart';
 import 'package:kora/features/coach/presentation/widgets/coach_bottom_sheet.dart';
@@ -195,7 +196,10 @@ class SkinScanResultBottomSheet extends StatelessWidget {
         _buildSafetyAlertCard(report.safety),
       ],
       const SizedBox(height: 28),
-      YouCamMaskGalleryWidget(concerns: result.allConcerns),
+      YouCamMaskGalleryWidget(
+        concerns: result.allConcerns,
+        userPhotoPath: result.resizedImageUrl,
+      ),
       const SizedBox(height: 28),
       _buildMedicalDisclaimer(report?.disclaimers),
       const SizedBox(height: 100),
@@ -593,6 +597,12 @@ class SkinScanResultBottomSheet extends StatelessWidget {
     required int rank,
   }) {
     final maskUrl = concern.maskUrls.isNotEmpty ? concern.maskUrls.first : null;
+    final effectivePhoto =
+        (maskUrl != null &&
+            maskUrl.isNotEmpty &&
+            !maskUrl.startsWith('scan-masks/'))
+        ? maskUrl
+        : result.resizedImageUrl;
 
     return Container(
       margin: const EdgeInsets.only(bottom: 14),
@@ -656,8 +666,8 @@ class SkinScanResultBottomSheet extends StatelessWidget {
               ],
             ),
           ),
-          // YouCam AI Detection Mask Image
-          if (maskUrl != null && maskUrl.isNotEmpty) ...[
+          // YouCam AI Detection Mask Image / Real Scanned Face
+          if (effectivePhoto != null && effectivePhoto.isNotEmpty) ...[
             Container(
               color: AppNeutralColors.shade300,
               padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
@@ -689,9 +699,10 @@ class SkinScanResultBottomSheet extends StatelessWidget {
                           unawaited(
                             SkinConcernMaskViewer.show(
                               context,
-                              imageUrl: maskUrl,
+                              imageUrl: effectivePhoto,
                               concernTitle: concern.displayName,
                               scoreText: '${concern.rawScore.round()}/100',
+                              concernId: concern.id,
                             ),
                           );
                         },
@@ -714,9 +725,10 @@ class SkinScanResultBottomSheet extends StatelessWidget {
                         unawaited(
                           SkinConcernMaskViewer.show(
                             context,
-                            imageUrl: maskUrl,
+                            imageUrl: effectivePhoto,
                             concernTitle: concern.displayName,
                             scoreText: '${concern.rawScore.round()}/100',
+                            concernId: concern.id,
                           ),
                         );
                       },
@@ -729,40 +741,12 @@ class SkinScanResultBottomSheet extends StatelessWidget {
                           child: Stack(
                             fit: StackFit.expand,
                             children: [
-                              Image.network(
-                                maskUrl,
-                                fit: BoxFit.cover,
-                                loadingBuilder: (context, child, progress) {
-                                  if (progress == null) return child;
-                                  return const Center(
-                                    child: CircularProgressIndicator(
-                                      strokeWidth: 2,
-                                      color: AppPrimaryColors.shade400,
-                                    ),
-                                  );
-                                },
-                                errorBuilder: (context, error, stackTrace) {
-                                  return Center(
-                                    child: Row(
-                                      mainAxisSize: MainAxisSize.min,
-                                      children: [
-                                        const Icon(
-                                          Icons.image_not_supported_outlined,
-                                          color: AppGreyColors.shade600,
-                                          size: 20,
-                                        ),
-                                        const SizedBox(width: 8),
-                                        Text(
-                                          'Overlay preview unavailable',
-                                          style: AppTypography.bodyXsRegular
-                                              .copyWith(
-                                                color: AppGreyColors.shade600,
-                                              ),
-                                        ),
-                                      ],
-                                    ),
-                                  );
-                                },
+                              KoraScanImage(
+                                photoPath: effectivePhoto,
+                                showMeshOverlay: true,
+                                zoneHighlight: concern.id,
+                                semanticLabel:
+                                    'Detection mask for ${concern.displayName}',
                               ),
                               Positioned(
                                 right: 8,

@@ -6,6 +6,7 @@ import 'package:get_it/get_it.dart';
 import 'package:go_router/go_router.dart';
 import 'package:kora/common/app_colors.dart';
 import 'package:kora/common/app_typography.dart';
+import 'package:kora/common/widgets/empty_state_view.dart';
 import 'package:kora/common/widgets/kora_card.dart';
 import 'package:kora/common/widgets/kora_delta_pill.dart';
 import 'package:kora/common/widgets/primary_button.dart';
@@ -57,6 +58,21 @@ class _CompareScansPageState extends State<CompareScansPage> {
     String requestedId, {
     required bool fallbackToLatest,
   }) {
+    final realScans = state.scans
+        .where(
+          (s) => !s.isDemo && s.photoPath != null && s.photoPath!.isNotEmpty,
+        )
+        .toList();
+
+    if (realScans.isNotEmpty &&
+        (requestedId == 'scan_1' || requestedId == 'scan_8')) {
+      if (fallbackToLatest) {
+        return realScans.first;
+      } else {
+        return realScans.length > 1 ? realScans.last : realScans.first;
+      }
+    }
+
     final found = state.findScanById(requestedId);
     if (found != null) return found;
     return fallbackToLatest ? state.latestScan! : state.baselineScan!;
@@ -89,10 +105,16 @@ class _CompareScansPageState extends State<CompareScansPage> {
         body: SafeArea(
           child: BlocBuilder<ProgressBloc, ProgressState>(
             builder: (context, state) {
-              if (state.scans.isEmpty) {
-                return const Center(
-                  child: CircularProgressIndicator(
-                    color: AppColors.primary700,
+              if (state.scans.length < 2) {
+                return Center(
+                  child: Padding(
+                    padding: const EdgeInsets.all(24),
+                    child: EmptyStateView(
+                      title: 'Need at least 2 scans',
+                      message: 'Complete your weekly scans to unlock before & after comparisons and track your progress over time.',
+                      primaryActionLabel: 'Start scan',
+                      onPrimaryAction: () => context.push(AppRoutes.scanGuide),
+                    ),
                   ),
                 );
               }

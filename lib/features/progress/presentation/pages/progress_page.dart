@@ -48,7 +48,7 @@ class ProgressPage extends StatelessWidget {
       initProgressInjection(getIt);
     }
     final bloc = getIt<ProgressBloc>();
-    if (bloc.state.status.isInitial) {
+    if (bloc.state.status.isInitial || bloc.state.status.isFailure) {
       bloc.add(ProgressStarted(initialSegment: initialSegment));
     } else if (initialSegment != null &&
         initialSegment != bloc.state.selectedSegment) {
@@ -70,17 +70,24 @@ class ProgressPage extends StatelessWidget {
     return SkinAnalysisResult(
       overallScore: scan.overallScore,
       skinAge: scan.skinAge,
+      resizedImageUrl: scan.photoPath,
       skinType: const SkinTypeInfo(
         overallType: 'Combination',
         tZoneType: 'Oily',
         uZoneType: 'Normal',
       ),
       allConcerns: scan.wholeFaceConcerns.map((c) {
+        final maskPath = (c.maskPath != null && c.maskPath!.isNotEmpty)
+            ? c.maskPath!
+            : (scan.photoPath != null && scan.photoPath!.isNotEmpty
+                  ? scan.photoPath!
+                  : '');
         return SkinConcern(
           id: c.concernKey,
           displayName: labelsByKey[c.concernKey] ?? c.concernKey,
           uiScore: c.rawScore.round(),
           rawScore: c.rawScore,
+          maskUrls: maskPath.isNotEmpty ? [maskPath] : const [],
         );
       }).toList(),
     );
@@ -238,6 +245,13 @@ class _ProgressDashboardView extends StatelessWidget {
         ? '4 weeks'
         : (state.selectedRange == 1 ? '12 weeks' : '7 weeks');
 
+    final activeExp = state.experiments.isNotEmpty
+        ? state.experiments.first
+        : null;
+    final experimentAnnotation = activeExp != null
+        ? ' · ${activeExp.title} started ${_shortDate(activeExp.startedAt)}'
+        : ' · Calibrated tracking';
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
@@ -267,7 +281,7 @@ class _ProgressDashboardView extends StatelessWidget {
         ProgressTrajectoryChartCard(
           title: 'Overall Trajectory',
           subtitle:
-              '${delta >= 0 ? "+$delta" : "$delta"} points over $rangeLabel · Retinol 0.3% started Sep 18',
+              '${delta >= 0 ? "+$delta" : "$delta"} points over $rangeLabel$experimentAnnotation',
           delta: delta,
           isStable: delta.abs() < 3,
           points: points,

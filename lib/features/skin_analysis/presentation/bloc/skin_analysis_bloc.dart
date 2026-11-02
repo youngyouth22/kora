@@ -1,14 +1,18 @@
 // ignore_for_file: document_ignores, prefer_initializing_formals
 
 import 'dart:async';
+import 'dart:developer' as developer;
+import 'dart:io';
 
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:kora/core/utils/active_user_resolver.dart';
 import 'package:kora/features/skin_analysis/domain/entities/scan_record.dart';
 import 'package:kora/features/skin_analysis/domain/usecases/analyze_skin_usecase.dart';
 import 'package:kora/features/skin_analysis/domain/usecases/preprocess_skin_image_usecase.dart';
 import 'package:kora/features/skin_analysis/domain/usecases/save_scan_record_usecase.dart';
 import 'package:kora/features/skin_analysis/presentation/bloc/skin_analysis_event.dart';
 import 'package:kora/features/skin_analysis/presentation/bloc/skin_analysis_state.dart';
+import 'package:path_provider/path_provider.dart';
 
 /// BLoC orchestrating the 3-phase YouCam HD analysis pipeline:
 /// 1. Isolate image optimization (HD dimensions & size constraint)
@@ -120,14 +124,39 @@ class SkinAnalysisBloc extends Bloc<SkinAnalysisEvent, SkinAnalysisState> {
         ),
       ),
       (result) async {
+        final scanId = 'scan_${DateTime.now().millisecondsSinceEpoch}';
+        final rawPath = processedImagePath ?? event.imagePath;
+
+        var permanentPhotoPath = rawPath;
+        try {
+          if (rawPath.isNotEmpty && File(rawPath).existsSync()) {
+            final appDir = await getApplicationDocumentsDirectory();
+            final scansDir = Directory('${appDir.path}/scans');
+            if (!scansDir.existsSync()) {
+              scansDir.createSync(recursive: true);
+            }
+            final destinationPath = '${scansDir.path}/scan_$scanId.jpg';
+            File(rawPath).copySync(destinationPath);
+            if (File(destinationPath).existsSync()) {
+              permanentPhotoPath = destinationPath;
+            }
+          }
+        } on Object catch (e) {
+          developer.log('Failed to copy scan photo: $e', name: 'kora.scan');
+        }
+
+        final enrichedResult = result.copyWith(
+          resizedImageUrl: permanentPhotoPath,
+        );
+
         final saveUseCase = _saveScanUseCase;
         if (saveUseCase != null) {
-          final scanId = 'scan_${DateTime.now().millisecondsSinceEpoch}';
-          final concernRecords = result.allConcerns.map((c) {
+          final userId = await ActiveUserResolver.resolveUserId();
+          final concernRecords = enrichedResult.allConcerns.map((c) {
             return ScanConcernRecord(
               id: 'concern_${scanId}_${c.id}',
               scanId: scanId,
-              userId: 'local-user',
+              userId: userId,
               concern: c.id,
               rawScore: c.rawScore,
               uiScore: c.uiScore.toDouble(),
@@ -137,10 +166,10 @@ class SkinAnalysisBloc extends Bloc<SkinAnalysisEvent, SkinAnalysisState> {
 
           final record = ScanRecord(
             id: scanId,
-            userId: 'local-user',
-            overallScore: result.overallScore,
-            skinAge: result.skinAge,
-            photoPath: processedImagePath ?? event.imagePath,
+            userId: userId,
+            overallScore: enrichedResult.overallScore,
+            skinAge: enrichedResult.skinAge,
+            photoPath: permanentPhotoPath,
             concerns: concernRecords,
             createdAt: DateTime.now(),
             completedAt: DateTime.now(),
@@ -153,7 +182,7 @@ class SkinAnalysisBloc extends Bloc<SkinAnalysisEvent, SkinAnalysisState> {
           state.copyWith(
             status: SkinAnalysisStatus.success,
             currentStepIndex: 2,
-            result: result,
+            result: enrichedResult,
           ),
         );
       },

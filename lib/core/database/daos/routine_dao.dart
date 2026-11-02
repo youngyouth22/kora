@@ -48,6 +48,14 @@ class RoutineDao {
         .get();
   }
 
+  /// Retrieves all routine completion logs for [userId].
+  Future<List<RoutineLogEntry>> getAllRoutineLogs(String userId) {
+    return (_db.select(_db.routineLogsTable)
+          ..where((tbl) => tbl.userId.equals(userId))
+          ..orderBy([(tbl) => OrderingTerm.desc(tbl.logDate)]))
+        .get();
+  }
+
   /// Watches routine completion logs for [userId] on a specific [logDate].
   Stream<List<RoutineLogEntry>> watchRoutineLogsForDate({
     required String userId,
@@ -62,5 +70,30 @@ class RoutineDao {
   /// Inserts or updates a routine completion log.
   Future<void> upsertRoutineLog(RoutineLogsCompanion companion) {
     return _db.into(_db.routineLogsTable).insertOnConflictUpdate(companion);
+  }
+
+  /// Deletes legacy auto-seeded demo routine logs.
+  Future<int> deleteDemoSeedLogs(String userId) {
+    return (_db.delete(_db.routineLogsTable)..where(
+          (tbl) =>
+              tbl.userId.equals(userId) &
+              (tbl.id.like('%-am-cleanser') |
+                  tbl.id.like('%-am-toner') |
+                  tbl.id.like('%-am-vitc') |
+                  tbl.id.like('%-pm-cleanser')),
+        ))
+        .go();
+  }
+
+  /// Deletes all routine items and logs for [userId] (used on account reset).
+  Future<void> deleteAllRoutineForUser(String userId) {
+    return _db.transaction(() async {
+      await (_db.delete(
+        _db.routineLogsTable,
+      )..where((tbl) => tbl.userId.equals(userId))).go();
+      await (_db.delete(
+        _db.routineItemsTable,
+      )..where((tbl) => tbl.userId.equals(userId))).go();
+    });
   }
 }

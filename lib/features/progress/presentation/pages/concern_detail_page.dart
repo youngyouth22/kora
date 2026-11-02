@@ -6,6 +6,7 @@ import 'package:get_it/get_it.dart';
 import 'package:go_router/go_router.dart';
 import 'package:kora/common/app_colors.dart';
 import 'package:kora/common/app_typography.dart';
+import 'package:kora/common/widgets/empty_state_view.dart';
 import 'package:kora/common/widgets/kora_card.dart';
 import 'package:kora/common/widgets/kora_delta_pill.dart';
 import 'package:kora/common/widgets/kora_score_ring.dart';
@@ -80,6 +81,34 @@ class _ConcernDetailView extends StatelessWidget {
         final concernMeta = state.findConcernType(concernType);
         final title = concernMeta?.label ?? 'Dark spots';
         final canonicalKey = concernMeta?.key ?? 'age_spot';
+
+        if (state.scans.isEmpty) {
+          return Scaffold(
+            backgroundColor: AppColors.scaffoldColor,
+            appBar: AppBar(
+              backgroundColor: AppColors.scaffoldColor,
+              elevation: 0,
+              scrolledUnderElevation: 0,
+              title: Text(
+                title,
+                style: AppTypography.h5Bold.copyWith(color: AppColors.grey1050),
+              ),
+            ),
+            body: Center(
+              child: Padding(
+                padding: const EdgeInsets.all(24),
+                child: EmptyStateView(
+                  title: 'No scan data for $title',
+                  message:
+                      'Complete your calibrated skin scan to start tracking $title over time.',
+                  primaryActionLabel: 'Start scan',
+                  onPrimaryAction: () => context.push(AppRoutes.scanGuide),
+                ),
+              ),
+            ),
+          );
+        }
+
         final traj = state.concernTrajectoryFor(canonicalKey);
         final currentScore = traj.current.round();
 

@@ -6,6 +6,7 @@ import 'package:get_it/get_it.dart';
 import 'package:go_router/go_router.dart';
 import 'package:kora/common/app_colors.dart';
 import 'package:kora/common/app_typography.dart';
+import 'package:kora/common/widgets/primary_button.dart';
 import 'package:kora/core/router/app_routes.dart';
 import 'package:kora/core/router/app_session_state.dart';
 import 'package:kora/core/services/revenue_cat_service.dart';
@@ -70,6 +71,11 @@ class AccountSecurePage extends StatelessWidget {
 
           if (GoRouter.maybeOf(context) == null) return;
 
+          if (Navigator.of(context).canPop()) {
+            Navigator.of(context).pop(state.status == AuthStatus.authenticated);
+            return;
+          }
+
           final hasSub = session?.hasActiveSubscription ?? false;
           if (showPaywallAfterAuth && !hasSub) {
             context.go(AppRoutes.paywall);
@@ -87,22 +93,47 @@ class AccountSecurePage extends StatelessWidget {
           }
         } else if (state.status == AuthStatus.failure &&
             state.errorMessage != null) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              backgroundColor: AppErrorColors.shade500,
-              content: Text(
-                state.errorMessage!,
-                style: AppTypography.bodyMRegular.copyWith(
-                  color: AppGreyColors.white,
+          final error = state.errorMessage!;
+          final isGoogleConsoleError = error.contains('28444') ||
+              error.contains('Developer console') ||
+              error.contains('clientConfigurationError') ||
+              error.contains('Google Sign-In') ||
+              error.contains('GoogleSignInException');
+
+          if (isGoogleConsoleError) {
+            _showGoogleSignInUnavailableDialog(context);
+          } else {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                backgroundColor: AppErrorColors.shade500,
+                content: Text(
+                  error,
+                  style: AppTypography.bodyMRegular.copyWith(
+                    color: AppGreyColors.white,
+                  ),
                 ),
               ),
-            ),
-          );
+            );
+          }
         }
       },
       builder: (context, state) {
         return Scaffold(
           backgroundColor: AppColors.scaffoldColor,
+          appBar: Navigator.of(context).canPop()
+              ? AppBar(
+                  backgroundColor: AppColors.scaffoldColor,
+                  elevation: 0,
+                  leading: IconButton(
+                    icon: const Icon(
+                      Icons.arrow_back_ios_new_rounded,
+                      color: AppGreyColors.shade1050,
+                      size: 20,
+                    ),
+                    onPressed: () => Navigator.of(context).pop(false),
+                  ),
+                )
+              : null,
           body: SafeArea(
             child: SingleChildScrollView(
               padding: const EdgeInsets.symmetric(horizontal: 24),
@@ -226,6 +257,80 @@ class AccountSecurePage extends StatelessWidget {
           ),
         ),
       ],
+    );
+  }
+
+  void _showGoogleSignInUnavailableDialog(BuildContext context) {
+    showDialog<void>(
+      context: context,
+      barrierDismissible: false,
+      builder: (dialogContext) {
+        return AlertDialog(
+          backgroundColor: AppGreyColors.white,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(20),
+            side: const BorderSide(color: AppGreyColors.shade300),
+          ),
+          icon: Container(
+            width: 48,
+            height: 48,
+            decoration: const BoxDecoration(
+              color: AppPrimaryColors.shade100,
+              shape: BoxShape.circle,
+            ),
+            child: const Icon(
+              Icons.info_outline_rounded,
+              color: AppPrimaryColors.shade700,
+              size: 28,
+            ),
+          ),
+          title: Text(
+            'Google Sign-In Unavailable',
+            textAlign: TextAlign.center,
+            style: AppTypography.h5Bold.copyWith(
+              color: AppGreyColors.shade1050,
+            ),
+          ),
+          content: Text(
+            'Google Sign-In is not currently available in this test environment. '
+            'You can continue using the full app in guest mode without any interruption.',
+            textAlign: TextAlign.center,
+            style: AppTypography.bodyMRegular.copyWith(
+              color: AppGreyColors.shade700,
+              height: 1.4,
+            ),
+          ),
+          actionsPadding: const EdgeInsets.fromLTRB(20, 0, 20, 20),
+          actions: [
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                PrimaryButton(
+                  text: 'Continue as Guest',
+                  height: 48,
+                  onPressed: () {
+                    Navigator.of(dialogContext).pop();
+                    context.read<AuthBloc>().add(
+                          const AuthSkipRequested(),
+                        );
+                  },
+                ),
+                const SizedBox(height: 8),
+                TextButton(
+                  onPressed: () => Navigator.of(dialogContext).pop(),
+                  child: Text(
+                    'Cancel',
+                    style: AppTypography.bodyMRegular.copyWith(
+                      color: AppGreyColors.shade600,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ],
+        );
+      },
     );
   }
 }

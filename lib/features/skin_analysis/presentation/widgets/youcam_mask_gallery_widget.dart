@@ -5,6 +5,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:kora/common/app_colors.dart';
 import 'package:kora/common/app_typography.dart';
+import 'package:kora/common/widgets/kora_scan_image.dart';
 import 'package:kora/features/skin_analysis/domain/entities/skin_concern.dart';
 import 'package:kora/features/skin_analysis/presentation/widgets/skin_concern_mask_viewer.dart';
 
@@ -16,11 +17,15 @@ class YouCamMaskGalleryWidget extends StatefulWidget {
   /// Creates a [YouCamMaskGalleryWidget].
   const YouCamMaskGalleryWidget({
     required this.concerns,
+    this.userPhotoPath,
     super.key,
   });
 
   /// The complete list of evaluated concerns (typically 16 from YouCam AI).
   final List<SkinConcern> concerns;
+
+  /// Optional local or remote path to the user's real scanned skin image.
+  final String? userPhotoPath;
 
   @override
   State<YouCamMaskGalleryWidget> createState() =>
@@ -226,6 +231,12 @@ class _YouCamMaskGalleryWidgetState extends State<YouCamMaskGalleryWidget> {
 
   Widget _buildHeroMaskCard(BuildContext context, SkinConcern concern) {
     final maskUrl = concern.maskUrls.isNotEmpty ? concern.maskUrls.first : null;
+    final effectivePhoto =
+        (maskUrl != null &&
+            maskUrl.isNotEmpty &&
+            !maskUrl.startsWith('scan-masks/'))
+        ? maskUrl
+        : widget.userPhotoPath;
     final concernColor = YouCamConcernColorHelper.getColor(concern.id);
     final colorDesc = YouCamConcernColorHelper.getColorDescription(concern.id);
     final isStrength = concern.uiScore >= 70;
@@ -324,33 +335,14 @@ class _YouCamMaskGalleryWidgetState extends State<YouCamMaskGalleryWidget> {
             child: Stack(
               fit: StackFit.expand,
               children: [
-                if (maskUrl != null && maskUrl.isNotEmpty)
-                  Image.network(
-                    maskUrl,
-                    fit: BoxFit.contain,
-                    loadingBuilder: (context, child, progress) {
-                      if (progress == null) return child;
-                      return const Center(
-                        child: CircularProgressIndicator(
-                          strokeWidth: 2,
-                          color: AppPrimaryColors.shade400,
-                        ),
-                      );
-                    },
-                    errorBuilder: (context, error, stackTrace) {
-                      return _buildAnatomicalZoneFallback(
-                        concern,
-                        concernColor,
-                        colorDesc,
-                      );
-                    },
-                  )
-                else
-                  _buildAnatomicalZoneFallback(
-                    concern,
-                    concernColor,
-                    colorDesc,
-                  ),
+                KoraScanImage(
+                  photoPath: effectivePhoto,
+                  fit: BoxFit.contain,
+                  showMeshOverlay: true,
+                  zoneHighlight: concern.id,
+                  semanticLabel:
+                      'YouCam detection mask for ${concern.displayName}',
+                ),
                 Positioned(
                   right: 12,
                   bottom: 12,
@@ -359,7 +351,7 @@ class _YouCamMaskGalleryWidgetState extends State<YouCamMaskGalleryWidget> {
                       unawaited(
                         SkinConcernMaskViewer.show(
                           context,
-                          imageUrl: maskUrl ?? '',
+                          imageUrl: effectivePhoto ?? '',
                           concernTitle: concern.displayName,
                           concernId: concern.id,
                           scoreText: '${concern.rawScore.round()}/100',
@@ -400,52 +392,6 @@ class _YouCamMaskGalleryWidgetState extends State<YouCamMaskGalleryWidget> {
             ),
           ),
         ],
-      ),
-    );
-  }
-
-  Widget _buildAnatomicalZoneFallback(
-    SkinConcern concern,
-    Color concernColor,
-    String colorDesc,
-  ) {
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.all(20),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Container(
-              width: 56,
-              height: 56,
-              decoration: BoxDecoration(
-                color: concernColor.withValues(alpha: 0.18),
-                shape: BoxShape.circle,
-                border: Border.all(color: concernColor, width: 2),
-              ),
-              child: Icon(
-                Icons.face_retouching_natural,
-                color: concernColor,
-                size: 28,
-              ),
-            ),
-            const SizedBox(height: 10),
-            Text(
-              concern.displayName,
-              style: AppTypography.bodyMSemiBold.copyWith(
-                color: AppGreyColors.white,
-              ),
-            ),
-            const SizedBox(height: 4),
-            Text(
-              colorDesc,
-              style: AppTypography.bodyXsRegular.copyWith(
-                color: AppGreyColors.shade400,
-              ),
-              textAlign: TextAlign.center,
-            ),
-          ],
-        ),
       ),
     );
   }
@@ -558,6 +504,12 @@ class _YouCamMaskGalleryWidgetState extends State<YouCamMaskGalleryWidget> {
     int index,
   ) {
     final maskUrl = concern.maskUrls.isNotEmpty ? concern.maskUrls.first : null;
+    final effectivePhoto =
+        (maskUrl != null &&
+            maskUrl.isNotEmpty &&
+            !maskUrl.startsWith('scan-masks/'))
+        ? maskUrl
+        : widget.userPhotoPath;
     final dotColor = YouCamConcernColorHelper.getColor(concern.id);
     final isSelected = index == _selectedIndex;
 
@@ -587,25 +539,12 @@ class _YouCamMaskGalleryWidgetState extends State<YouCamMaskGalleryWidget> {
                 border: Border.all(color: AppNeutralColors.shade600),
               ),
               clipBehavior: Clip.antiAlias,
-              child: maskUrl != null && maskUrl.isNotEmpty
-                  ? Image.network(
-                      maskUrl,
-                      fit: BoxFit.cover,
-                      errorBuilder: (_, _, _) => Center(
-                        child: Icon(
-                          Icons.center_focus_strong,
-                          color: dotColor,
-                          size: 22,
-                        ),
-                      ),
-                    )
-                  : Center(
-                      child: Icon(
-                        Icons.center_focus_strong,
-                        color: dotColor,
-                        size: 22,
-                      ),
-                    ),
+              child: KoraScanImage(
+                photoPath: effectivePhoto,
+                showMeshOverlay: true,
+                zoneHighlight: concern.id,
+                semanticLabel: concern.displayName,
+              ),
             ),
             const SizedBox(width: 12),
             Expanded(

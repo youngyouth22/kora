@@ -16,6 +16,7 @@ import 'package:kora/features/auth/auth_injection.dart';
 import 'package:kora/features/coach/coach_injection.dart';
 import 'package:kora/features/experiment/experiment_injection.dart';
 import 'package:kora/features/guided_capture/guided_capture_injection.dart';
+import 'package:kora/features/home/home_injection.dart';
 import 'package:kora/features/notifications/notifications_injection.dart';
 import 'package:kora/features/onboarding/data/repositories/user_profile_repository_impl.dart';
 import 'package:kora/features/onboarding/domain/repositories/user_profile_repository.dart';
@@ -140,6 +141,7 @@ void configureDependencies({SharedPreferences? preferences}) {
   initSkinAnalysisInjection(sl);
   initSubscriptionInjection(sl);
   initAuthInjection(sl);
+  initHomeInjection(sl);
   initRoutineInjection(sl);
   initProgressInjection(sl);
   initProductScannerInjection(sl);

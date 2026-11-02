@@ -1,9 +1,13 @@
 // ignore_for_file: document_ignores, prefer_initializing_formals
 
+import 'dart:async';
+
 import 'package:drift/drift.dart';
 import 'package:kora/core/database/app_database.dart';
 import 'package:kora/core/database/daos/profile_dao.dart';
+import 'package:kora/core/database/daos/sync_mutation_dao.dart';
 import 'package:kora/core/services/app_preferences_service.dart';
+import 'package:kora/core/sync/sync_engine.dart';
 import 'package:kora/features/onboarding/data/models/user_demographics_model.dart';
 import 'package:kora/features/onboarding/data/models/user_skin_profile_model.dart';
 import 'package:kora/features/onboarding/domain/entities/user_skin_profile.dart';
@@ -43,16 +47,24 @@ abstract class OnboardingLocalDataSource {
 
 /// Drift SQLite backed and in-memory local cache implementation for onboarding.
 class OnboardingLocalDataSourceImpl implements OnboardingLocalDataSource {
-  /// Creates an [OnboardingLocalDataSourceImpl] with optional [ProfileDao]
-  /// and [AppPreferencesService].
+  /// Creates an [OnboardingLocalDataSourceImpl] with optional dependencies.
   OnboardingLocalDataSourceImpl({
     ProfileDao? profileDao,
     AppPreferencesService? preferencesService,
+    AppDatabase? appDatabase,
+    SyncEngine? syncEngine,
+    SyncMutationDao? syncMutationDao,
   }) : _profileDao = profileDao,
-       _preferencesService = preferencesService;
+       _preferencesService = preferencesService,
+       _appDatabase = appDatabase,
+       _syncEngine = syncEngine,
+       _syncMutationDao = syncMutationDao;
 
   final ProfileDao? _profileDao;
   final AppPreferencesService? _preferencesService;
+  final AppDatabase? _appDatabase;
+  final SyncEngine? _syncEngine;
+  final SyncMutationDao? _syncMutationDao;
 
   UserDemographicsModel? _demographics;
   final Map<int, String> _quizAnswers = {};
@@ -217,13 +229,14 @@ class OnboardingLocalDataSourceImpl implements OnboardingLocalDataSource {
       );
     }
 
+    var oldId = _anonymousId;
     if (_profileDao != null) {
       final entry =
           (_anonymousId != null
               ? await _profileDao.getProfile(_anonymousId!)
               : null) ??
           await _profileDao.getLatestProfile();
-      final oldId = _anonymousId ?? entry?.id;
+      oldId ??= entry?.id;
       final companion = ProfilesCompanion(
         id: Value(userId),
         skinType: Value(entry?.skinType ?? _skinProfile?.skinType?.code),
@@ -253,6 +266,154 @@ class OnboardingLocalDataSourceImpl implements OnboardingLocalDataSource {
       if (oldId != null && oldId != userId) {
         await _profileDao.deleteProfile(oldId);
       }
+    }
+
+    final db = _appDatabase;
+    if (db != null) {
+      await _migrateGuestRecordsToUser(
+        db: db,
+        oldGuestId: oldId,
+        newUserId: userId,
+      );
+    }
+
+    if (_syncEngine != null) {
+      unawaited(_syncEngine.sync(userId: userId));
+    }
+  }
+
+  Future<void> _migrateGuestRecordsToUser({
+    required AppDatabase db,
+    required String? oldGuestId,
+    required String newUserId,
+  }) async {
+    // 1. Scans & Concerns
+    await (db.update(db.scansTable)..where(
+          (tbl) =>
+              tbl.userId.equals('local-user') |
+              tbl.userId.equals('00000000-0000-0000-0000-000000000001') |
+              tbl.userId.like('kora_guest%') |
+              (oldGuestId != null
+                  ? tbl.userId.equals(oldGuestId)
+                  : const Constant(false)),
+        ))
+        .write(ScansCompanion(userId: Value(newUserId)));
+
+    await (db.update(db.scanConcernsTable)..where(
+          (tbl) =>
+              tbl.userId.equals('local-user') |
+              tbl.userId.equals('00000000-0000-0000-0000-000000000001') |
+              tbl.userId.like('kora_guest%') |
+              (oldGuestId != null
+                  ? tbl.userId.equals(oldGuestId)
+                  : const Constant(false)),
+        ))
+        .write(ScanConcernsCompanion(userId: Value(newUserId)));
+
+    // 2. Routine Items & Logs
+    await (db.update(db.routineItemsTable)..where(
+          (tbl) =>
+              tbl.userId.equals('local-user') |
+              tbl.userId.equals('00000000-0000-0000-0000-000000000001') |
+              tbl.userId.like('kora_guest%') |
+              (oldGuestId != null
+                  ? tbl.userId.equals(oldGuestId)
+                  : const Constant(false)),
+        ))
+        .write(RoutineItemsCompanion(userId: Value(newUserId)));
+
+    await (db.update(db.routineLogsTable)..where(
+          (tbl) =>
+              tbl.userId.equals('local-user') |
+              tbl.userId.equals('00000000-0000-0000-0000-000000000001') |
+              tbl.userId.like('kora_guest%') |
+              (oldGuestId != null
+                  ? tbl.userId.equals(oldGuestId)
+                  : const Constant(false)),
+        ))
+        .write(RoutineLogsCompanion(userId: Value(newUserId)));
+
+    // 3. Experiments
+    await (db.update(db.experimentsTable)..where(
+          (tbl) =>
+              tbl.userId.equals('local-user') |
+              tbl.userId.equals('00000000-0000-0000-0000-000000000001') |
+              tbl.userId.like('kora_guest%') |
+              (oldGuestId != null
+                  ? tbl.userId.equals(oldGuestId)
+                  : const Constant(false)),
+        ))
+        .write(ExperimentsCompanion(userId: Value(newUserId)));
+
+    // 4. Enqueue Sync Mutations for newly assigned records so they replicate
+    final mutationDao = _syncMutationDao;
+    if (mutationDao != null) {
+      try {
+        final scans = await (db.select(
+          db.scansTable,
+        )..where((tbl) => tbl.userId.equals(newUserId))).get();
+        for (final scan in scans) {
+          await mutationDao.enqueue(
+            id: 'migrated_scan_${scan.id}',
+            targetTable: 'scans',
+            recordId: scan.id,
+            action: 'upsert',
+            payload: {
+              'id': scan.id,
+              'user_id': newUserId,
+              'status': scan.status,
+              'mode': scan.mode,
+              'overall_score': scan.overallScore,
+              'skin_age': scan.skinAge,
+              'quality_ok': scan.qualityOk,
+              'created_at': scan.createdAt.toIso8601String(),
+              'completed_at': scan.completedAt?.toIso8601String(),
+            },
+          );
+        }
+
+        final items = await (db.select(
+          db.routineItemsTable,
+        )..where((tbl) => tbl.userId.equals(newUserId))).get();
+        for (final item in items) {
+          await mutationDao.enqueue(
+            id: 'migrated_routine_${item.id}',
+            targetTable: 'routine_items',
+            recordId: item.id,
+            action: 'upsert',
+            payload: {
+              'id': item.id,
+              'user_id': newUserId,
+              'name': item.name,
+              'brand': item.brand,
+              'step_type': item.stepType,
+              'period': item.period,
+              'active': item.active,
+              'sort_order': item.sortOrder,
+            },
+          );
+        }
+
+        final logs = await (db.select(
+          db.routineLogsTable,
+        )..where((tbl) => tbl.userId.equals(newUserId))).get();
+        for (final log in logs) {
+          await mutationDao.enqueue(
+            id: 'migrated_log_${log.id}',
+            targetTable: 'routine_logs',
+            recordId: log.id,
+            action: 'upsert',
+            payload: {
+              'id': log.id,
+              'user_id': newUserId,
+              'item_id': log.itemId,
+              'log_date': log.logDate,
+              'period': log.period,
+              'done': log.done,
+            },
+          );
+        }
+      } on Object catch (_) {}
     }
   }
 

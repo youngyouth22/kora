@@ -193,10 +193,8 @@ class NewScanSelectionSheet extends StatelessWidget {
                 const SizedBox(width: 14),
                 Expanded(
                   child: ScanOptionCard(
-                    title: 'Cosmetics & Food',
-                    subtitle:
-                        'See if a skincare product, food, '
-                        'beverage, or supplement fits you',
+                    title: 'Cosmetics',
+                    subtitle: 'See if a skincare product fits you',
                     onTap: () => _select(context, NewScanChoice.product),
                   ),
                 ),

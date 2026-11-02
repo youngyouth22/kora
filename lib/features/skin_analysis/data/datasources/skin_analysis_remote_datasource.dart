@@ -9,6 +9,7 @@ import 'package:get_it/get_it.dart';
 import 'package:kora/core/error/exceptions.dart';
 import 'package:kora/core/network/api_endpoints.dart';
 import 'package:kora/core/network/kora_ai_api_client.dart';
+import 'package:kora/core/utils/active_user_resolver.dart';
 import 'package:kora/features/onboarding/domain/entities/user_skin_profile.dart';
 import 'package:kora/features/onboarding/domain/repositories/user_profile_repository.dart';
 import 'package:kora/features/skin_analysis/data/models/skin_analysis_result_model.dart';
@@ -82,25 +83,34 @@ class SkinAnalysisRemoteDataSourceImpl implements SkinAnalysisRemoteDataSource {
     }
 
     try {
+      final userId = await ActiveUserResolver.resolveUserId();
       var profile = _userProfile;
       if (profile == null &&
           GetIt.instance.isRegistered<UserProfileRepository>()) {
         final profileRes = await GetIt.instance<UserProfileRepository>()
-            .getProfile(id: 'local-user');
+            .getProfile(id: userId);
         profile = profileRes.fold((_) => null, (p) => p);
       }
 
       final request = SkinReportRequestModel.fromAnalysis(
         analysis: baseResult,
         userProfile: profile,
-        fallbackUserId: client.currentUserId,
+        fallbackUserId: userId,
         currentRoutineIngredients: _currentRoutineIngredients,
       );
-      final liveReport = await generateSkinReport(request: request);
+      final liveReport = await generateSkinReport(request: request).timeout(
+        const Duration(seconds: 12),
+      );
       return baseResult.copyWithReport(liveReport);
-    } on Object catch (e, st) {
-      debugPrint('[SkinAnalysisRemoteDataSource] /skin-report error: $e\n$st');
-      // Preserve offline/resilient fallback report if Render AI is unreachable.
+    } on NetworkException catch (e) {
+      debugPrint(
+        '[SkinAnalysisRemoteDataSource] Kora AI backend unreachable (${e.message}). Falling back to local calibrated report.',
+      );
+      return baseResult;
+    } on Object catch (e) {
+      debugPrint(
+        '[SkinAnalysisRemoteDataSource] /skin-report skipped ($e). Falling back to local calibrated report.',
+      );
       return baseResult;
     }
   }

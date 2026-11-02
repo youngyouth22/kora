@@ -25,6 +25,7 @@ class StepProgressItem extends StatefulWidget {
   const StepProgressItem({
     required this.title,
     required this.state,
+    this.isDarkBackground = true,
     super.key,
   });
 
@@ -33,6 +34,9 @@ class StepProgressItem extends StatefulWidget {
 
   /// Progress state of this step.
   final StepProgressState state;
+
+  /// Whether the item is rendered on a dark background (adjusts contrast).
+  final bool isDarkBackground;
 
   @override
   State<StepProgressItem> createState() => _StepProgressItemState();
@@ -83,6 +87,10 @@ class _StepProgressItemState extends State<StepProgressItem>
     final isCompleted = widget.state == StepProgressState.completed;
     final isActive = widget.state == StepProgressState.active;
 
+    final textColor = widget.isDarkBackground
+        ? AppGreyColors.white
+        : AppGreyColors.shade1050;
+
     return Semantics(
       label:
           '${widget.title}: ${isCompleted
@@ -102,7 +110,7 @@ class _StepProgressItemState extends State<StepProgressItem>
                 child: Text(
                   widget.title,
                   style: AppTypography.bodyLMedium.copyWith(
-                    color: AppGreyColors.white,
+                    color: textColor,
                     fontWeight: isCompleted || isActive
                         ? FontWeight.w600
                         : FontWeight.w400,
@@ -162,13 +170,17 @@ class _StepProgressItemState extends State<StepProgressItem>
       );
     }
 
+    final inactiveBorderColor = widget.isDarkBackground
+        ? AppGreyColors.shade600
+        : AppGreyColors.shade300;
+
     return Container(
       width: 22,
       height: 22,
       decoration: BoxDecoration(
         shape: BoxShape.circle,
         border: Border.all(
-          color: AppGreyColors.shade600,
+          color: inactiveBorderColor,
           width: 1.5,
         ),
       ),
@@ -176,11 +188,15 @@ class _StepProgressItemState extends State<StepProgressItem>
   }
 
   Widget _buildProgressBar(bool isCompleted, bool isActive) {
+    final trackColor = widget.isDarkBackground
+        ? AppGreyColors.white.withValues(alpha: 0.2)
+        : AppGreyColors.shade200;
+
     return Container(
       height: 6,
       width: double.infinity,
       decoration: BoxDecoration(
-        color: AppGreyColors.white.withValues(alpha: 0.2),
+        color: trackColor,
         borderRadius: BorderRadius.circular(3),
       ),
       child: LayoutBuilder(

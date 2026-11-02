@@ -3,7 +3,7 @@
 
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:kora/core/enums/status.dart';
-import 'package:kora/features/progress/data/datasources/progress_sql_seed_datasource.dart';
+import 'package:kora/core/utils/active_user_resolver.dart';
 import 'package:kora/features/progress/domain/usecases/progress_usecases.dart';
 import 'package:kora/features/progress/presentation/bloc/progress_event.dart';
 import 'package:kora/features/progress/presentation/bloc/progress_state.dart';
@@ -39,45 +39,54 @@ class ProgressBloc extends Bloc<ProgressEvent, ProgressState> {
   ) async {
     emit(state.copyWith(status: BaseStatus.loading));
 
-    final userId = event.userId ?? ProgressSqlSeedDataSource.defaultUserId;
-    final targetMonth = event.month ?? state.activeMonth;
+    try {
+      final userId = event.userId ?? await ActiveUserResolver.resolveUserId();
+      final targetMonth = event.month ?? state.activeMonth;
 
-    final result = await _getDashboard(
-      userId: userId,
-      month: targetMonth,
-    );
+      final result = await _getDashboard(
+        userId: userId,
+        month: targetMonth,
+      );
 
-    result.fold(
-      (failure) => emit(
+      result.fold(
+        (failure) => emit(
+          state.copyWith(
+            status: BaseStatus.failure,
+            userId: userId,
+            errorMessage: failure.message,
+          ),
+        ),
+        (bundle) {
+          final scans = bundle.scans;
+          final defaultA = scans.isNotEmpty ? scans.last.id : 'scan_1';
+          final defaultB = scans.isNotEmpty ? scans.first.id : 'scan_8';
+
+          emit(
+            state.copyWith(
+              status: BaseStatus.success,
+              userId: userId,
+              selectedSegment: event.initialSegment ?? state.selectedSegment,
+              activeMonth: DateTime(targetMonth.year, targetMonth.month),
+              scans: scans,
+              concernTypes: bundle.concernTypes,
+              activityDays: bundle.activityDays,
+              streakState: bundle.streakState,
+              milestones: bundle.milestones,
+              experiments: bundle.experiments,
+              compareScanAId: defaultA,
+              compareScanBId: defaultB,
+            ),
+          );
+        },
+      );
+    } on Object catch (e) {
+      emit(
         state.copyWith(
           status: BaseStatus.failure,
-          userId: userId,
-          errorMessage: failure.message,
+          errorMessage: e.toString(),
         ),
-      ),
-      (bundle) {
-        final scans = bundle.scans;
-        final defaultA = scans.isNotEmpty ? scans.last.id : 'scan_1';
-        final defaultB = scans.isNotEmpty ? scans.first.id : 'scan_8';
-
-        emit(
-          state.copyWith(
-            status: BaseStatus.success,
-            userId: userId,
-            selectedSegment: event.initialSegment ?? state.selectedSegment,
-            activeMonth: DateTime(targetMonth.year, targetMonth.month),
-            scans: scans,
-            concernTypes: bundle.concernTypes,
-            activityDays: bundle.activityDays,
-            streakState: bundle.streakState,
-            milestones: bundle.milestones,
-            experiments: bundle.experiments,
-            compareScanAId: defaultA,
-            compareScanBId: defaultB,
-          ),
-        );
-      },
-    );
+      );
+    }
   }
 
   void _onSegmentChanged(

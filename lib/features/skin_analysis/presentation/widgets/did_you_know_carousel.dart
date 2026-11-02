@@ -19,7 +19,13 @@ class _SkincareFact {
 /// Educational carousel displaying rotating skincare facts during analysis.
 class DidYouKnowCarousel extends StatefulWidget {
   /// Creates a [DidYouKnowCarousel].
-  const DidYouKnowCarousel({super.key});
+  const DidYouKnowCarousel({
+    this.isDarkBackground = true,
+    super.key,
+  });
+
+  /// Whether the carousel is rendered on a dark background.
+  final bool isDarkBackground;
 
   @override
   State<DidYouKnowCarousel> createState() => _DidYouKnowCarouselState();
@@ -69,6 +75,24 @@ class _DidYouKnowCarouselState extends State<DidYouKnowCarousel> {
   @override
   Widget build(BuildContext context) {
     final currentFact = _facts[_currentIndex];
+    final isDark = widget.isDarkBackground;
+
+    final bgColor = isDark
+        ? AppGreyColors.shade1050.withValues(alpha: 0.55)
+        : AppPrimaryColors.shade50;
+    final borderColor = isDark
+        ? AppGreyColors.white.withValues(alpha: 0.12)
+        : AppPrimaryColors.shade100;
+    final iconBgColor = isDark
+        ? AppPrimaryColors.shade500.withValues(alpha: 0.15)
+        : AppPrimaryColors.shade100;
+    final iconColor = isDark
+        ? AppPrimaryColors.shade400
+        : AppPrimaryColors.shade700;
+    final titleColor = isDark
+        ? AppPrimaryColors.shade400
+        : AppPrimaryColors.shade800;
+    final factColor = isDark ? AppGreyColors.shade300 : AppGreyColors.shade700;
 
     return Semantics(
       container: true,
@@ -79,11 +103,9 @@ class _DidYouKnowCarouselState extends State<DidYouKnowCarousel> {
           key: ValueKey<int>(_currentIndex),
           padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
           decoration: BoxDecoration(
-            color: AppGreyColors.shade1050.withValues(alpha: 0.55),
+            color: bgColor,
             borderRadius: BorderRadius.circular(16),
-            border: Border.all(
-              color: AppGreyColors.white.withValues(alpha: 0.12),
-            ),
+            border: Border.all(color: borderColor),
           ),
           child: Row(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -91,12 +113,12 @@ class _DidYouKnowCarouselState extends State<DidYouKnowCarousel> {
               Container(
                 padding: const EdgeInsets.all(8),
                 decoration: BoxDecoration(
-                  color: AppPrimaryColors.shade500.withValues(alpha: 0.15),
+                  color: iconBgColor,
                   shape: BoxShape.circle,
                 ),
-                child: const Icon(
+                child: Icon(
                   Icons.auto_awesome,
-                  color: AppPrimaryColors.shade400,
+                  color: iconColor,
                   size: 18,
                 ),
               ),
@@ -109,14 +131,14 @@ class _DidYouKnowCarouselState extends State<DidYouKnowCarousel> {
                     Text(
                       currentFact.title,
                       style: AppTypography.bodyMSemiBold.copyWith(
-                        color: AppPrimaryColors.shade400,
+                        color: titleColor,
                       ),
                     ),
                     const SizedBox(height: 4),
                     Text(
                       currentFact.fact,
                       style: AppTypography.bodySRegular.copyWith(
-                        color: AppGreyColors.shade300,
+                        color: factColor,
                         height: 1.4,
                       ),
                     ),

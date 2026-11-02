@@ -49,6 +49,25 @@ class SkinAnalysisResult extends Equatable {
     return sorted.take(3).toList();
   }
 
+  /// Creates a copy of this result with specified fields replaced.
+  SkinAnalysisResult copyWith({
+    double? overallScore,
+    int? skinAge,
+    SkinTypeInfo? skinType,
+    String? resizedImageUrl,
+    List<SkinConcern>? allConcerns,
+    SkinReport? report,
+  }) {
+    return SkinAnalysisResult(
+      overallScore: overallScore ?? this.overallScore,
+      skinAge: skinAge ?? this.skinAge,
+      skinType: skinType ?? this.skinType,
+      resizedImageUrl: resizedImageUrl ?? this.resizedImageUrl,
+      allConcerns: allConcerns ?? this.allConcerns,
+      report: report ?? this.report,
+    );
+  }
+
   @override
   List<Object?> get props => [
     overallScore,

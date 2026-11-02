@@ -1,12 +1,19 @@
 // ignore_for_file: document_ignores, lines_longer_than_80_chars
 
+import 'dart:async';
+
 import 'package:flutter/material.dart';
+import 'package:get_it/get_it.dart';
 import 'package:go_router/go_router.dart';
 import 'package:kora/common/app_colors.dart';
 import 'package:kora/common/app_typography.dart';
 import 'package:kora/common/widgets/kora_card.dart';
 import 'package:kora/common/widgets/primary_button.dart';
 import 'package:kora/core/router/app_routes.dart';
+import 'package:kora/core/utils/active_user_resolver.dart';
+import 'package:kora/features/experiment/domain/entities/skincare_experiment.dart';
+import 'package:kora/features/experiment/domain/repositories/experiment_repository.dart';
+import 'package:kora/features/routine/domain/repositories/routine_repository.dart';
 
 /// Screen to frame and launch a scientifically controlled product experiment (C11 in blueprint).
 class NewExperimentPage extends StatefulWidget {
@@ -27,6 +34,34 @@ class _NewExperimentPageState extends State<NewExperimentPage> {
     'Vitamin C 15% Super Serum',
     'Azelaic Acid 10% Suspension',
   ];
+
+  @override
+  void initState() {
+    super.initState();
+    unawaited(_loadRoutineProducts());
+  }
+
+  Future<void> _loadRoutineProducts() async {
+    final sl = GetIt.instance;
+    if (sl.isRegistered<RoutineRepository>()) {
+      final userId = await ActiveUserResolver.resolveUserId();
+      final res = await sl<RoutineRepository>().getRoutineProducts(
+        userId: userId,
+      );
+      res.fold(
+        (_) {},
+        (products) {
+          if (products.isNotEmpty && mounted) {
+            setState(() {
+              _productsInRoutine.clear();
+              _productsInRoutine.addAll(products.map((p) => p.name));
+              _selectedProduct = _productsInRoutine.first;
+            });
+          }
+        },
+      );
+    }
+  }
 
   final List<String> _availableConcerns = [
     'Dark spots',
@@ -257,13 +292,33 @@ class _NewExperimentPageState extends State<NewExperimentPage> {
                 text: 'Start experiment',
                 height: 52,
                 backgroundColor: AppColors.primary700,
-                onPressed: () {
-                  final targetId = _selectedProduct.contains('Vitamin C')
-                      ? 'exp-vitc-active'
-                      : 'exp-retinol-demo';
-                  context.pushReplacement(
-                    AppRoutes.buildExperimentPath(targetId),
+                onPressed: () async {
+                  final expId = 'exp_${DateTime.now().millisecondsSinceEpoch}';
+                  final now = DateTime.now();
+                  final userId = await ActiveUserResolver.resolveUserId();
+                  final experiment = SkincareExperiment(
+                    id: expId,
+                    userId: userId,
+                    title: _selectedProduct,
+                    targets: _selectedConcerns.toList(),
+                    plannedDays: _selectedDurationWeeks * 7,
+                    startedAt: now,
+                    startedOn:
+                        '${now.year.toString().padLeft(4, '0')}-${now.month.toString().padLeft(2, '0')}-${now.day.toString().padLeft(2, '0')}',
+                    createdAt: now,
+                    updatedAt: now,
                   );
+
+                  final sl = GetIt.instance;
+                  if (sl.isRegistered<ExperimentRepository>()) {
+                    await sl<ExperimentRepository>().saveExperiment(experiment);
+                  }
+
+                  if (context.mounted) {
+                    context.pushReplacement(
+                      AppRoutes.buildExperimentPath(expId),
+                    );
+                  }
                 },
               ),
               const SizedBox(height: 16),

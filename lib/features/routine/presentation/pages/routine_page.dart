@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:get_it/get_it.dart';
@@ -41,7 +43,7 @@ class RoutinePage extends StatelessWidget {
       initRoutineInjection(getIt);
     }
     final bloc = getIt<RoutineBloc>();
-    if (bloc.state.status.isInitial) {
+    if (bloc.state.status.isInitial || bloc.state.status.isFailure) {
       bloc.add(RoutineStarted(initialPeriod: initialPeriod));
     } else if (initialPeriod != null &&
         initialPeriod != bloc.state.selectedPeriod) {
@@ -156,8 +158,15 @@ class _RoutineDashboardView extends StatelessWidget {
                     completedSteps: currentSummary.completed,
                     totalSteps: currentSummary.total,
                     weeklyAdherenceDays: state.weeklyAdherenceDays,
-                    onExperimentTap: () =>
-                        context.push(AppRoutes.buildExperimentPath('1')),
+                    onExperimentTap: () {
+                      if (state.experimentProductId != null) {
+                        unawaited(
+                          context.push(AppRoutes.buildExperimentPath('1')),
+                        );
+                      } else {
+                        unawaited(context.push(AppRoutes.experimentNew));
+                      }
+                    },
                   ),
                   const SizedBox(height: 10),
                   RoutineDailyCheckinCard(

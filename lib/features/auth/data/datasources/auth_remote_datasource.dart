@@ -4,6 +4,7 @@ import 'dart:developer' as developer;
 
 import 'package:google_sign_in/google_sign_in.dart';
 import 'package:kora/core/error/exceptions.dart';
+import 'package:kora/core/network/api_endpoints.dart';
 import 'package:kora/features/auth/data/models/user_account_model.dart';
 import 'package:supabase/supabase.dart' hide AuthException;
 import 'package:supabase/supabase.dart' as supa show AuthException;
@@ -42,15 +43,28 @@ class AuthRemoteDataSourceImpl implements AuthRemoteDataSource {
   /// Creates an [AuthRemoteDataSourceImpl].
   AuthRemoteDataSourceImpl({
     SupabaseClient? client,
-  }) : _client = client;
+    String? serverClientId,
+  }) : _client = client,
+       _serverClientId = serverClientId ?? ApiEndpoints.googleServerClientId;
 
   final SupabaseClient? _client;
+  final String _serverClientId;
   bool _googleInitialized = false;
 
   Future<void> _ensureGoogleInitialized() async {
+    if (_serverClientId.isEmpty) {
+      throw const AuthException(
+        message:
+            'Google Sign-In is not configured: '
+            'GOOGLE_SERVER_CLIENT_ID is missing. '
+            'Please pass --dart-define-from-file=.env when running the app.',
+      );
+    }
     if (!_googleInitialized) {
       try {
-        await GoogleSignIn.instance.initialize();
+        await GoogleSignIn.instance.initialize(
+          serverClientId: _serverClientId,
+        );
         _googleInitialized = true;
       } on Object catch (e) {
         developer.log(

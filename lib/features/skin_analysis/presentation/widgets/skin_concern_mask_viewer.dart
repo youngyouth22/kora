@@ -3,6 +3,7 @@
 import 'package:flutter/material.dart';
 import 'package:kora/common/app_colors.dart';
 import 'package:kora/common/app_typography.dart';
+import 'package:kora/common/widgets/kora_scan_image.dart';
 
 /// Modal dialog allowing inspection of a YouCam detection mask with pinch-to-zoom.
 class SkinConcernMaskViewer extends StatelessWidget {
@@ -132,95 +133,17 @@ class SkinConcernMaskViewer extends StatelessWidget {
                 ),
                 child: InteractiveViewer(
                   maxScale: 4,
-                  child: Image.network(
-                    imageUrl,
+                  child: KoraScanImage(
+                    photoPath: imageUrl,
                     fit: BoxFit.contain,
-                    loadingBuilder: (context, child, loadingProgress) {
-                      if (loadingProgress == null) return child;
-                      return const Center(
-                        child: Padding(
-                          padding: EdgeInsets.all(40),
-                          child: CircularProgressIndicator(
-                            strokeWidth: 2,
-                            color: AppPrimaryColors.shade400,
-                          ),
-                        ),
-                      );
-                    },
-                    errorBuilder: (context, error, stackTrace) {
-                      return _buildFallbackVisualizer(
-                        context,
-                        concernColor,
-                        colorDesc,
-                      );
-                    },
+                    showMeshOverlay: true,
+                    zoneHighlight: concernId,
+                    semanticLabel: 'Zoomed detection mask for $concernTitle',
                   ),
                 ),
               ),
             ),
           ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildFallbackVisualizer(
-    BuildContext context,
-    Color concernColor,
-    String colorDesc,
-  ) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 36),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Container(
-            width: 72,
-            height: 72,
-            decoration: BoxDecoration(
-              color: concernColor.withValues(alpha: 0.15),
-              shape: BoxShape.circle,
-              border: Border.all(color: concernColor, width: 2),
-            ),
-            child: Icon(
-              Icons.center_focus_strong,
-              color: concernColor,
-              size: 36,
-            ),
-          ),
-          const SizedBox(height: 16),
-          Text(
-            concernTitle,
-            style: AppTypography.h6Bold.copyWith(
-              color: AppGreyColors.white,
-            ),
-            textAlign: TextAlign.center,
-          ),
-          const SizedBox(height: 6),
-          Text(
-            colorDesc,
-            style: AppTypography.bodySRegular.copyWith(
-              color: AppGreyColors.shade300,
-            ),
-            textAlign: TextAlign.center,
-          ),
-          if (scoreText != null) ...[
-            const SizedBox(height: 12),
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
-              decoration: BoxDecoration(
-                color: AppGreyColors.shade900,
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: AppGreyColors.shade700),
-              ),
-              child: Text(
-                'Raw Score: $scoreText',
-                style: AppTypography.bodySSemiBold.copyWith(
-                  color: AppGreyColors.white,
-                ),
-              ),
-            ),
-          ],
         ],
       ),
     );

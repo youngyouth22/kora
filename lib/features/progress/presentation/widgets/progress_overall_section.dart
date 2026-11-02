@@ -5,6 +5,7 @@ import 'package:kora/common/app_colors.dart';
 import 'package:kora/common/app_typography.dart';
 import 'package:kora/common/widgets/kora_card.dart';
 import 'package:kora/common/widgets/kora_delta_pill.dart';
+import 'package:kora/common/widgets/kora_scan_image.dart';
 import 'package:kora/common/widgets/kora_score_ring.dart';
 import 'package:kora/features/progress/domain/entities/progress_models.dart';
 import 'package:kora/features/progress/domain/entities/progress_scan.dart';
@@ -469,21 +470,47 @@ class ProgressScanHistoryTile extends StatelessWidget {
       child: Row(
         children: [
           Container(
-            width: 46,
-            height: 46,
+            width: 50,
+            height: 50,
             decoration: BoxDecoration(
-              color: isLatest ? AppColors.primary50 : AppColors.neutral300,
               borderRadius: BorderRadius.circular(10),
               border: Border.all(
-                color: isLatest ? AppColors.primary300 : AppColors.grey300,
+                color: isLatest ? AppColors.primary400 : AppColors.grey300,
+                width: isLatest ? 1.5 : 1,
               ),
             ),
-            alignment: Alignment.center,
-            child: Text(
-              scan.overallScore.toStringAsFixed(0),
-              style: AppTypography.bodyLBold.copyWith(
-                color: isLatest ? AppColors.primary900 : AppColors.grey1050,
-              ),
+            clipBehavior: Clip.antiAlias,
+            child: Stack(
+              fit: StackFit.expand,
+              children: [
+                KoraScanImage(
+                  photoPath: scan.photoPath,
+                  scanId: scan.id,
+                  fit: BoxFit.cover,
+                  semanticLabel: 'Scan on ${_formatDate(scan.createdAt)}',
+                ),
+                Positioned(
+                  right: 2,
+                  bottom: 2,
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 4,
+                      vertical: 1,
+                    ),
+                    decoration: BoxDecoration(
+                      color: AppColors.grey1050.withValues(alpha: 0.78),
+                      borderRadius: BorderRadius.circular(4),
+                    ),
+                    child: Text(
+                      scan.overallScore.toStringAsFixed(0),
+                      style: AppTypography.bodyXsBold.copyWith(
+                        color: AppColors.grey50,
+                        fontSize: 10,
+                      ),
+                    ),
+                  ),
+                ),
+              ],
             ),
           ),
           const SizedBox(width: 12),

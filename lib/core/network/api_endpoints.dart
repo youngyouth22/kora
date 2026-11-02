@@ -35,6 +35,13 @@ abstract final class ApiEndpoints {
     defaultValue: 'https://mxgumftalavoxmaqutjr.supabase.co',
   );
 
+  /// Google OAuth Web Client ID (Server Client ID) required on Android by
+  /// Google Credential Manager / Google Sign-In to obtain an ID token for
+  /// Supabase authentication.
+  static const String googleServerClientId = String.fromEnvironment(
+    'GOOGLE_SERVER_CLIENT_ID',
+  );
+
   /// Edge function path for secure YouCam skin analysis orchestration and
   /// private bucket storage.
   static const String scanFunction = '/functions/v1/scan';

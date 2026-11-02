@@ -5,6 +5,7 @@ import 'package:dartz/dartz.dart';
 import 'package:drift/drift.dart';
 import 'package:kora/core/database/app_database.dart';
 import 'package:kora/core/database/daos/experiment_dao.dart';
+import 'package:kora/core/database/daos/routine_dao.dart';
 import 'package:kora/core/database/daos/scan_dao.dart';
 import 'package:kora/core/error/failures.dart';
 import 'package:kora/features/progress/data/datasources/progress_sql_seed_datasource.dart';
@@ -14,24 +15,26 @@ import 'package:kora/features/progress/domain/repositories/progress_repository.d
 
 /// Offline-first implementation of [ProgressRepository].
 ///
-/// Reads from Drift SQLite ([ScanDao], [ExperimentDao]) when available and
-/// automatically seeds realistic 8-week SQL-aligned data
-/// ([ProgressSqlSeedDataSource]) when empty so the Progress dashboard and all
-/// its subroutes are immediately functional and ready for live Supabase sync.
+/// Reads from Drift SQLite ([ScanDao], [ExperimentDao], [RoutineDao]) when
+/// available and falls back to seed data ([ProgressSqlSeedDataSource]) in
+/// mock/test environments when the database is absent.
 class ProgressRepositoryImpl implements ProgressRepository {
   /// Creates a [ProgressRepositoryImpl].
   ProgressRepositoryImpl({
     ScanDao? scanDao,
     ExperimentDao? experimentDao,
+    RoutineDao? routineDao,
     bool seedDemoIfEmpty = true,
     DateTime? referenceDate,
   }) : _scanDao = scanDao,
        _experimentDao = experimentDao,
+       _routineDao = routineDao,
        _seedDemoIfEmpty = seedDemoIfEmpty,
        _referenceDate = referenceDate;
 
   final ScanDao? _scanDao;
   final ExperimentDao? _experimentDao;
+  final RoutineDao? _routineDao;
   final bool _seedDemoIfEmpty;
   final DateTime? _referenceDate;
 
@@ -40,8 +43,11 @@ class ProgressRepositoryImpl implements ProgressRepository {
       <String, List<ProgressScan>>{};
 
   Future<void> _ensureSeedScans(String userId) async {
-    if (!_seedDemoIfEmpty &&
-        userId != ProgressSqlSeedDataSource.defaultUserId) {
+    if (!_seedDemoIfEmpty) return;
+    // Only populate demo seed records for demo accounts or unauthenticated
+    // fallback
+    if (userId != ProgressSqlSeedDataSource.defaultUserId &&
+        userId != '00000000-0000-0000-0000-000000000001') {
       return;
     }
     if (_seededUsers.contains(userId)) return;
@@ -98,46 +104,49 @@ class ProgressRepositoryImpl implements ProgressRepository {
   }) async {
     try {
       await _ensureSeedScans(userId);
-      final seeded =
-          _memoryScans[userId] ??
-          ProgressSqlSeedDataSource.buildSeedScans(
-            userId: userId,
-            referenceDate: _referenceDate,
-          );
 
       final dao = _scanDao;
       if (dao == null) {
+        final seeded =
+            _memoryScans[userId] ??
+            ProgressSqlSeedDataSource.buildSeedScans(
+              userId: userId,
+              referenceDate: _referenceDate,
+            );
         return Right(seeded);
       }
 
       final entries = await dao.getScansForUser(userId);
       if (entries.isEmpty) {
-        return Right(seeded);
+        if (_seedDemoIfEmpty &&
+            (userId == ProgressSqlSeedDataSource.defaultUserId ||
+                userId == '00000000-0000-0000-0000-000000000001')) {
+          final seeded = ProgressSqlSeedDataSource.buildSeedScans(
+            userId: userId,
+            referenceDate: _referenceDate,
+          );
+          return Right(seeded);
+        }
+        return const Right([]);
       }
-
-      final notesById = <String, ProgressScan>{
-        for (final s in seeded) s.id: s,
-      };
 
       final scans = <ProgressScan>[];
       for (final entry in entries) {
         final concernEntries = await dao.getScanConcerns(entry.id);
-        final fallback = notesById[entry.id];
         scans.add(
           ProgressScan(
             id: entry.id,
             userId: entry.userId,
             status: entry.status,
             mode: entry.mode,
-            overallScore: entry.overallScore ?? fallback?.overallScore ?? 70.0,
-            skinAge: entry.skinAge ?? fallback?.skinAge ?? 34,
+            overallScore: entry.overallScore ?? 70.0,
+            skinAge: entry.skinAge ?? 30,
             qualityOk: entry.qualityOk,
             photoPath: entry.photoPath,
             isDemo: entry.isDemo,
             createdAt: entry.createdAt,
             completedAt: entry.completedAt ?? entry.createdAt,
-            note: fallback?.note ?? 'Weekly calibrated skin scan',
-            experimentRole: fallback?.experimentRole,
+            note: 'Weekly calibrated skin scan',
             concerns: concernEntries.isNotEmpty
                 ? concernEntries
                       .map(
@@ -153,7 +162,7 @@ class ProgressRepositoryImpl implements ProgressRepository {
                         ),
                       )
                       .toList()
-                : (fallback?.concerns ?? const []),
+                : const [],
           ),
         );
       }
@@ -193,13 +202,69 @@ class ProgressRepositoryImpl implements ProgressRepository {
     required DateTime month,
   }) async {
     try {
-      return Right(
-        ProgressSqlSeedDataSource.buildCalendarMonth(
-          month: month,
-          userId: userId,
-          referenceDate: _referenceDate,
-        ),
-      );
+      if (_scanDao == null && _routineDao == null && _seedDemoIfEmpty) {
+        return Right(
+          ProgressSqlSeedDataSource.buildCalendarMonth(
+            month: month,
+            userId: userId,
+            referenceDate: _referenceDate,
+          ),
+        );
+      }
+
+      final daysInMonth = DateTime(month.year, month.month + 1, 0).day;
+
+      final scans = _scanDao != null
+          ? await _scanDao.getScansForUser(userId)
+          : const <ScanEntry>[];
+      final rawRoutineLogs = _routineDao != null
+          ? await _routineDao.getAllRoutineLogs(userId)
+          : const <RoutineLogEntry>[];
+      final routineLogs = rawRoutineLogs
+          .where((l) => !_isDemoSeedLog(l.id))
+          .toList();
+
+      final activityDays = <ProgressActivityDay>[];
+      for (var day = 1; day <= daysInMonth; day++) {
+        final currentDate = DateTime(month.year, month.month, day);
+        final dateIso =
+            '${currentDate.year.toString().padLeft(4, '0')}-'
+            '${currentDate.month.toString().padLeft(2, '0')}-'
+            '${currentDate.day.toString().padLeft(2, '0')}';
+
+        final scansOnDate = scans.where((s) {
+          final d = s.createdAt.toLocal();
+          return d.year == currentDate.year &&
+              d.month == currentDate.month &&
+              d.day == currentDate.day;
+        }).toList();
+
+        final logsOnDate = routineLogs.where((l) => l.logDate == dateIso);
+        final hadRoutine = logsOnDate.any((l) => l.done);
+        final hadScan = scansOnDate.isNotEmpty;
+
+        var actions = 0;
+        if (hadScan) actions += 1;
+        if (hadRoutine) actions += 1;
+
+        activityDays.add(
+          ProgressActivityDay(
+            userId: userId,
+            day: currentDate,
+            actions: actions,
+            hadScan: hadScan,
+            hadRoutine: hadRoutine,
+            hadTask: hadRoutine,
+            scanId: hadScan ? scansOnDate.first.id : null,
+            scanScore: hadScan ? scansOnDate.first.overallScore : null,
+            summaryNote: hadScan
+                ? 'Weekly calibrated scan completed'
+                : (hadRoutine ? 'Routine completed' : null),
+          ),
+        );
+      }
+
+      return Right(activityDays);
     } on Object catch (e) {
       return Left(CacheFailure(message: 'Failed to load calendar month: $e'));
     }
@@ -210,10 +275,112 @@ class ProgressRepositoryImpl implements ProgressRepository {
     required String userId,
   }) async {
     try {
+      if (_scanDao == null && _routineDao == null && _seedDemoIfEmpty) {
+        return Right(
+          ProgressSqlSeedDataSource.buildSeedStreakState(
+            userId: userId,
+            referenceDate: _referenceDate,
+          ),
+        );
+      }
+
+      final rawRoutineLogs = _routineDao != null
+          ? await _routineDao.getAllRoutineLogs(userId)
+          : const <RoutineLogEntry>[];
+      final routineLogs = rawRoutineLogs
+          .where((l) => !_isDemoSeedLog(l.id))
+          .toList();
+      final scans = _scanDao != null
+          ? await _scanDao.getScansForUser(userId)
+          : const <ScanEntry>[];
+
+      // Extract unique active dates
+      final activeDateStrings = <String>{};
+      for (final l in routineLogs) {
+        if (l.done) {
+          activeDateStrings.add(l.logDate);
+        }
+      }
+      for (final s in scans) {
+        final d = s.createdAt.toLocal();
+        final iso =
+            '${d.year.toString().padLeft(4, '0')}-'
+            '${d.month.toString().padLeft(2, '0')}-'
+            '${d.day.toString().padLeft(2, '0')}';
+        activeDateStrings.add(iso);
+      }
+
+      final activeDates =
+          activeDateStrings
+              .map(DateTime.tryParse)
+              .whereType<DateTime>()
+              .map((dt) => DateTime(dt.year, dt.month, dt.day))
+              .toSet()
+              .toList()
+            ..sort((a, b) => b.compareTo(a));
+
+      final now = _referenceDate ?? DateTime.now();
+      final today = DateTime(now.year, now.month, now.day);
+      final yesterday = today.subtract(const Duration(days: 1));
+
+      var currentStreak = 0;
+      var checkDate = activeDates.contains(today) ? today : yesterday;
+
+      while (activeDates.contains(checkDate)) {
+        currentStreak++;
+        checkDate = checkDate.subtract(const Duration(days: 1));
+      }
+
+      // Calculate longest streak
+      var longestStreak = 0;
+      var streakCount = 0;
+      DateTime? prevDate;
+      final sortedAsc = List<DateTime>.from(activeDates)
+        ..sort((a, b) => a.compareTo(b));
+      for (final d in sortedAsc) {
+        if (prevDate == null) {
+          streakCount = 1;
+        } else if (d.difference(prevDate).inDays == 1) {
+          streakCount++;
+        } else {
+          streakCount = 1;
+        }
+        if (streakCount > longestStreak) {
+          longestStreak = streakCount;
+        }
+        prevDate = d;
+      }
+      if (currentStreak > longestStreak) {
+        longestStreak = currentStreak;
+      }
+
+      // Calculate weekly scan streak
+      final scanWeeks = <int>{};
+      for (final s in scans) {
+        final weekNumber = s.createdAt.difference(DateTime(2024)).inDays ~/ 7;
+        scanWeeks.add(weekNumber);
+      }
+      final currentWeek = today.difference(DateTime(2024)).inDays ~/ 7;
+      var weeklyScanStreak = 0;
+      var checkWeek = scanWeeks.contains(currentWeek)
+          ? currentWeek
+          : currentWeek - 1;
+      while (scanWeeks.contains(checkWeek)) {
+        weeklyScanStreak++;
+        checkWeek--;
+      }
+
       return Right(
-        ProgressSqlSeedDataSource.buildSeedStreakState(
+        ProgressStreakState(
           userId: userId,
-          referenceDate: _referenceDate,
+          currentStreak: currentStreak,
+          longestStreak: longestStreak,
+          lastActiveDate: activeDates.isNotEmpty ? activeDates.first : null,
+          freezesAvailable: 1,
+          freezesUsedTotal: 0,
+          weeklyScanStreak: weeklyScanStreak,
+          longestWeeklyScanStreak: weeklyScanStreak,
+          weeklyJokerAvailable: true,
         ),
       );
     } on Object catch (e) {
@@ -226,12 +393,35 @@ class ProgressRepositoryImpl implements ProgressRepository {
     required String userId,
   }) async {
     try {
-      return Right(
-        ProgressSqlSeedDataSource.buildSeedMilestones(
-          userId: userId,
-          referenceDate: _referenceDate,
-        ),
-      );
+      if (_scanDao == null && _seedDemoIfEmpty) {
+        return Right(
+          ProgressSqlSeedDataSource.buildSeedMilestones(
+            userId: userId,
+            referenceDate: _referenceDate,
+          ),
+        );
+      }
+
+      final scans = _scanDao != null
+          ? await _scanDao.getScansForUser(userId)
+          : const <ScanEntry>[];
+
+      final milestones = <ProgressMilestone>[];
+      if (scans.isNotEmpty) {
+        final firstScan = scans.last;
+        milestones.add(
+          ProgressMilestone(
+            userId: userId,
+            type: 'first_scan',
+            title: 'First Baseline Scan',
+            subtitle: 'Completed your calibrated starting point',
+            reachedAt: firstScan.createdAt,
+            seenAt: firstScan.createdAt,
+          ),
+        );
+      }
+
+      return Right(milestones);
     } on Object catch (e) {
       return Left(CacheFailure(message: 'Failed to load milestones: $e'));
     }
@@ -242,21 +432,58 @@ class ProgressRepositoryImpl implements ProgressRepository {
     required String userId,
   }) async {
     try {
-      final seeded = ProgressSqlSeedDataSource.buildSeedExperiments(
-        userId: userId,
-        referenceDate: _referenceDate,
-      );
       final dao = _experimentDao;
       if (dao == null) {
-        return Right(seeded);
+        if (_seedDemoIfEmpty) {
+          return Right(
+            ProgressSqlSeedDataSource.buildSeedExperiments(
+              userId: userId,
+              referenceDate: _referenceDate,
+            ),
+          );
+        }
+        return const Right([]);
       }
+
       final entries = await dao.getExperimentsForUser(userId);
       if (entries.isEmpty) {
-        return Right(seeded);
+        if (_seedDemoIfEmpty) {
+          return Right(
+            ProgressSqlSeedDataSource.buildSeedExperiments(
+              userId: userId,
+              referenceDate: _referenceDate,
+            ),
+          );
+        }
+        return const Right([]);
       }
-      return Right(seeded);
+
+      final list = entries.map((e) {
+        return ProgressExperiment(
+          id: e.id,
+          userId: e.userId,
+          title: e.title,
+          targets: e.targets,
+          plannedDays: e.plannedDays,
+          startedAt: e.startedAt,
+          startedOn: DateTime.tryParse(e.startedOn) ?? e.startedAt,
+          status: e.status,
+          adherence: e.adherence ?? 0.8,
+          itemId: e.itemId,
+          endedAt: e.endedAt,
+        );
+      }).toList();
+
+      return Right(list);
     } on Object catch (e) {
       return Left(CacheFailure(message: 'Failed to load experiments: $e'));
     }
+  }
+
+  static bool _isDemoSeedLog(String id) {
+    return id.endsWith('-am-cleanser') ||
+        id.endsWith('-am-toner') ||
+        id.endsWith('-am-vitc') ||
+        id.endsWith('-pm-cleanser');
   }
 }

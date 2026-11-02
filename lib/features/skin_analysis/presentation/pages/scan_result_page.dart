@@ -8,6 +8,7 @@ import 'package:go_router/go_router.dart';
 import 'package:kora/common/app_colors.dart';
 import 'package:kora/core/network/kora_ai_api_client.dart';
 import 'package:kora/core/router/app_routes.dart';
+import 'package:kora/core/utils/active_user_resolver.dart';
 import 'package:kora/features/onboarding/domain/entities/user_skin_profile.dart';
 import 'package:kora/features/onboarding/domain/repositories/user_profile_repository.dart';
 import 'package:kora/features/skin_analysis/data/datasources/skin_analysis_remote_datasource.dart';
@@ -66,8 +67,9 @@ class _ScanResultPageState extends State<ScanResultPage> {
       try {
         UserSkinProfile? profile;
         if (getIt.isRegistered<UserProfileRepository>()) {
+          final userId = await ActiveUserResolver.resolveUserId();
           final res = await getIt<UserProfileRepository>().getProfile(
-            id: 'local-user',
+            id: userId,
           );
           profile = res.fold((_) => null, (p) => p);
         }
